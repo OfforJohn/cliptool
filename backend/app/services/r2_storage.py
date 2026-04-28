@@ -103,6 +103,26 @@ class R2Storage:
             logger.error(f"Failed to generate presigned URL: {e}")
             return None
     
+    def get_presigned_upload_url(self, object_key: str, content_type: str = "video/mp4", expires_in: int = 3600) -> Optional[str]:
+        """Get a presigned URL for direct upload (PUT) to R2"""
+        if not self.enabled:
+            return None
+        
+        try:
+            url = self.client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': object_key,
+                    'ContentType': content_type
+                },
+                ExpiresIn=expires_in
+            )
+            return url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned upload URL: {e}")
+            return None
+    
     def delete_file(self, object_key: str) -> bool:
         """Delete a file from R2"""
         if not self.enabled:

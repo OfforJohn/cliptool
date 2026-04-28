@@ -9,8 +9,79 @@ const client = axios.create({
   timeout: 300000, // 5 min for large uploads/processing
 })
 
+interface PresignedUploadResponse {
+  video_id: string
+  upload_url: string
+  r2_key: string
+  expires_in: number
+}
+
 export const api = {
+  // Get presigned URL for direct upload to R2
+  async getPresignedUploadUrl(filename: string, contentType: string): Promise<PresignedUploadResponse | null> {
+    try {
+      const response = await client.post<PresignedUploadResponse>(
+        `/upload/presigned?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}`
+      )
+      return response.data
+    } catch {
+      // R2 not available, fall back to regular upload
+      return null
+    }
+  },
+
+  // Confirm direct upload completed
+  async confirmUpload(videoId: string, filename: string): Promise<VideoInfo> {
+    const response = await client.post<VideoInfo>(
+      `/upload/confirm?video_id=${encodeURIComponent(videoId)}&filename=${encodeURIComponent(filename)}`
+    )
+    return response.data
+  },
+
+  // Upload directly to R2 using presigned URL
+  async uploadToR2(uploadUrl: string, file: File, onProgress?: (percent: number) => void): Promise<boolean> {
+    try {
+      await axios.put(uploadUrl, file, {
+        headers: {
+          'Content-Type': file.type || 'video/mp4',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total && onProgress) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress(percent)
+          }
+        },
+      })
+      return true
+    } catch (error) {
+      console.error('Direct upload failed:', error)
+      return false
+    }
+  },
+
+  // Smart upload: tries direct R2 upload first, falls back to server upload
   async uploadVideo(file: File, onProgress?: (percent: number) => void): Promise<VideoInfo> {
+    // Try direct upload to R2 first
+    const presigned = await this.getPresignedUploadUrl(file.name, file.type || 'video/mp4')
+    
+    if (presigned) {
+      // Direct upload to R2 (faster!)
+      const success = await this.uploadToR2(presigned.upload_url, file, (percent) => {
+        // Scale progress: 0-90% for upload, 90-100% for confirmation
+        onProgress?.(Math.round(percent * 0.9))
+      })
+      
+      if (success) {
+        onProgress?.(95)
+        // Confirm upload and get video info
+        const info = await this.confirmUpload(presigned.video_id, file.name)
+        onProgress?.(100)
+        return info
+      }
+      // Fall through to regular upload if direct failed
+    }
+    
+    // Fallback: Regular upload through server
     const formData = new FormData()
     formData.append('file', file)
     const response = await client.post<VideoInfo>('/upload', formData, {

@@ -110,6 +110,78 @@ async def list_videos():
     return {'videos': videos}
 
 
+@app.post("/api/upload/presigned")
+async def get_presigned_upload_url(filename: str, content_type: str = "video/mp4"):
+    """Get a presigned URL for direct upload to R2"""
+    if not r2_storage.enabled:
+        raise HTTPException(status_code=503, detail="Cloud storage not available. Use regular upload.")
+    
+    # Validate file extension
+    allowed_extensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"]
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"File type {ext} not supported")
+    
+    # Generate unique video ID
+    video_id = str(uuid.uuid4())
+    r2_key = f"videos/{video_id}{ext}"
+    
+    # Get presigned upload URL
+    upload_url = r2_storage.get_presigned_upload_url(r2_key, content_type, expires_in=3600)
+    
+    if not upload_url:
+        raise HTTPException(status_code=500, detail="Failed to generate upload URL")
+    
+    return {
+        "video_id": video_id,
+        "upload_url": upload_url,
+        "r2_key": r2_key,
+        "expires_in": 3600
+    }
+
+
+@app.post("/api/upload/confirm", response_model=VideoInfo)
+async def confirm_upload(video_id: str, filename: str):
+    """Confirm direct upload completed and get video info"""
+    # Find the video in R2
+    video_path = None
+    video_ext = None
+    r2_key = None
+    
+    for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+        key = f"videos/{video_id}{ext}"
+        if r2_storage.file_exists(key):
+            r2_key = key
+            video_ext = ext
+            break
+    
+    if not r2_key:
+        raise HTTPException(status_code=404, detail="Video not found in storage. Upload may have failed.")
+    
+    # Download to local for processing metadata
+    local_path = os.path.join(UPLOAD_DIR, f"{video_id}{video_ext}")
+    
+    if not r2_storage.download_file(r2_key, local_path):
+        raise HTTPException(status_code=500, detail="Failed to process video")
+    
+    try:
+        info = video_processor.get_video_info(local_path)
+        return VideoInfo(
+            id=video_id,
+            filename=filename,
+            duration=info["duration"],
+            width=info["width"],
+            height=info["height"],
+            fps=info["fps"],
+            size_mb=info["size_mb"]
+        )
+    except Exception as e:
+        # Clean up on failure
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        raise HTTPException(status_code=400, detail=f"Invalid video file: {str(e)}")
+
+
 @app.post("/api/upload", response_model=VideoInfo)
 async def upload_video(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """Upload a video file for processing"""

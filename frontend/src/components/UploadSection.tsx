@@ -32,10 +32,15 @@ export default function UploadSection({ onUploaded, uploadRef }: UploadSectionPr
 
     try {
       const fileSizeMB = file.size / (1024 * 1024)
-      setStatusMessage(`Uploading ${fileSizeMB.toFixed(1)}MB...`)
+      setStatusMessage(`Uploading ${fileSizeMB.toFixed(1)}MB to cloud...`)
       
       const info = await api.uploadVideo(file, (percent) => {
         setUploadProgress(percent)
+        if (percent < 90) {
+          setStatusMessage(`Uploading ${fileSizeMB.toFixed(1)}MB to cloud... ${percent}%`)
+        } else if (percent < 100) {
+          setStatusMessage('Processing video...')
+        }
       })
       
       if (fileSizeMB > COMPRESS_THRESHOLD_MB) {
