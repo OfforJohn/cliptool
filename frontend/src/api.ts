@@ -150,4 +150,33 @@ export const api = {
     }
     return `${API_BASE_URL}${relativePath}`
   },
+
+  // Download file as blob and trigger browser download (works cross-origin)
+  async downloadFile(relativePath: string, filename: string): Promise<void> {
+    const url = this.getDownloadUrl(relativePath)
+    
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`)
+      }
+      
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      // Clean up object URL
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      console.error('Download failed:', error)
+      // Fallback: open in new tab
+      window.open(url, '_blank')
+    }
+  },
 }

@@ -127,13 +127,9 @@ function App() {
         output_format: 'mp4'
       })
       
-      // Download the clip
-      const link = document.createElement('a')
-      link.href = api.getDownloadUrl(result.download_url)
-      link.download = `clip_${Date.now()}.mp4`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      // Download the clip using blob (works cross-origin)
+      setProcessingStatus('Downloading clip...')
+      await api.downloadFile(result.download_url, `clip_${Date.now()}.mp4`)
     } catch (error) {
       console.error('Clip creation failed:', error)
       alert('Failed to create clip.')
@@ -150,12 +146,9 @@ function App() {
     try {
       const result = await api.removeAudio(video.id)
       
-      const link = document.createElement('a')
-      link.href = api.getDownloadUrl(result.download_url)
-      link.download = `${video.filename}_noaudio.mp4`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      // Download using blob (works cross-origin)
+      setProcessingStatus('Downloading...')
+      await api.downloadFile(result.download_url, `${video.filename}_noaudio.mp4`)
     } catch (error) {
       console.error('Remove audio failed:', error)
       alert('Failed to remove audio.')
