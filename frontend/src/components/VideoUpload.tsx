@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
-import { Upload, Film, AlertCircle } from 'lucide-react'
+import { Upload, Film, AlertCircle, Zap } from 'lucide-react'
 import { api } from '../api'
 import { VideoInfo } from '../types'
+import { compressVideo, shouldCompress } from '../utils/videoCompressor'
 
 interface VideoUploadProps {
   onUploaded: (info: VideoInfo) => void
@@ -10,7 +11,10 @@ interface VideoUploadProps {
 export default function VideoUpload({ onUploaded }: VideoUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [compressionProgress, setCompressionProgress] = useState(0)
+  const [statusMessage, setStatusMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const handleFile = async (file: File) => {
@@ -23,9 +27,30 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
     setError(null)
     setIsUploading(true)
     setUploadProgress(0)
+    setCompressionProgress(0)
 
     try {
-      const info = await api.uploadVideo(file, (percent) => {
+      let fileToUpload = file
+      
+      // Compress if file is larger than 50MB
+      if (shouldCompress(file, 50)) {
+        setIsCompressing(true)
+        setStatusMessage('Compressing video for faster upload...')
+        
+        const originalSize = (file.size / (1024 * 1024)).toFixed(1)
+        
+        fileToUpload = await compressVideo(file, (percent, stage) => {
+          setCompressionProgress(percent)
+          setStatusMessage(stage)
+        })
+        
+        const newSize = (fileToUpload.size / (1024 * 1024)).toFixed(1)
+        setStatusMessage(`Compressed: ${originalSize}MB → ${newSize}MB`)
+        setIsCompressing(false)
+      }
+      
+      setStatusMessage('Uploading...')
+      const info = await api.uploadVideo(fileToUpload, (percent) => {
         setUploadProgress(percent)
       })
       
@@ -33,8 +58,9 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
         onUploaded(info)
       }, 300)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Upload failed. Please try again.')
+      setError(err.response?.data?.detail || err.message || 'Upload failed. Please try again.')
       setIsUploading(false)
+      setIsCompressing(false)
     }
   }
 
@@ -98,15 +124,31 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
 
         {isUploading ? (
           <div className="space-y-4">
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <div className="text-white font-medium">Uploading...</div>
-            <div className="w-full bg-slate-700 rounded-full h-2 max-w-xs mx-auto">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-            <div className="text-slate-400 text-sm">{uploadProgress}%</div>
+            {isCompressing ? (
+              <>
+                <Zap className="w-16 h-16 text-yellow-500 mx-auto animate-pulse" />
+                <div className="text-white font-medium">{statusMessage}</div>
+                <div className="w-full bg-slate-700 rounded-full h-2 max-w-xs mx-auto">
+                  <div 
+                    className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${compressionProgress}%` }}
+                  />
+                </div>
+                <div className="text-slate-400 text-sm">{compressionProgress}%</div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="text-white font-medium">{statusMessage || 'Uploading...'}</div>
+                <div className="w-full bg-slate-700 rounded-full h-2 max-w-xs mx-auto">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <div className="text-slate-400 text-sm">{uploadProgress}%</div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -131,7 +173,7 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
       )}
 
       <div className="mt-8 text-center text-slate-500 text-sm">
-        <p>Maximum file size: 500MB • Videos are processed locally</p>
+        <p>Large files (50MB+) are automatically compressed for faster upload</p>
       </div>
     </div>
   )
