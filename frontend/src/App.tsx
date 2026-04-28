@@ -129,7 +129,7 @@ function App() {
       
       // Download the clip
       const link = document.createElement('a')
-      link.href = result.download_url
+      link.href = api.getDownloadUrl(result.download_url)
       link.download = `clip_${Date.now()}.mp4`
       document.body.appendChild(link)
       link.click()
@@ -151,7 +151,7 @@ function App() {
       const result = await api.removeAudio(video.id)
       
       const link = document.createElement('a')
-      link.href = result.download_url
+      link.href = api.getDownloadUrl(result.download_url)
       link.download = `${video.filename}_noaudio.mp4`
       document.body.appendChild(link)
       link.click()

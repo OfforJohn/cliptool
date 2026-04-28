@@ -140,4 +140,14 @@ export const api = {
   getVideoUrl(videoId: string): string {
     return `${API_BASE_URL}/video/${videoId}`
   },
+
+  // Get full download URL for outputs
+  getDownloadUrl(relativePath: string): string {
+    // relativePath is like "/outputs/uuid.mp4"
+    // Need to prepend API base URL
+    if (relativePath.startsWith('http')) {
+      return relativePath
+    }
+    return `${API_BASE_URL}${relativePath}`
+  },
 }
