@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Upload, Scissors, VolumeX, Sparkles } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Upload, Scissors, VolumeX, Sparkles, Plus } from 'lucide-react'
 import VideoUpload from './components/VideoUpload'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
@@ -8,8 +8,21 @@ import TranscriptionPanel from './components/TranscriptionPanel'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
+const STORAGE_KEY = 'cliptool_video'
+
 function App() {
-  const [video, setVideo] = useState<VideoInfo | null>(null)
+  const [video, setVideo] = useState<VideoInfo | null>(() => {
+    // Load from localStorage on initial render
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch {
+        return null
+      }
+    }
+    return null
+  })
   const [clipStart, setClipStart] = useState(0)
   const [clipEnd, setClipEnd] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
@@ -19,12 +32,34 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
 
+  // Save video to localStorage when it changes
+  useEffect(() => {
+    if (video) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(video))
+      // Restore clip bounds if video was loaded from storage
+      if (clipEnd === 0) {
+        setClipEnd(video.duration)
+      }
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  }, [video])
+
   const handleVideoUploaded = (info: VideoInfo) => {
     setVideo(info)
     setClipStart(0)
     setClipEnd(info.duration)
     setTranscription(null)
     setScenes([])
+  }
+
+  const handleNewVideo = () => {
+    setVideo(null)
+    setClipStart(0)
+    setClipEnd(0)
+    setTranscription(null)
+    setScenes([])
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   const handleTranscribe = async () => {
@@ -120,11 +155,22 @@ function App() {
             <h1 className="text-2xl font-bold text-white">ClipTool</h1>
             <span className="text-sm text-slate-400">AI-Powered Video Clipping</span>
           </div>
-          {video && (
-            <div className="text-sm text-slate-400">
-              {video.filename} • {video.duration.toFixed(1)}s • {video.width}x{video.height}
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {video && (
+              <>
+                <div className="text-sm text-slate-400">
+                  {video.filename} • {video.duration.toFixed(1)}s • {video.width}x{video.height}
+                </div>
+                <button
+                  onClick={handleNewVideo}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Video
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
