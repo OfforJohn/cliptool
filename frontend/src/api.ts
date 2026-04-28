@@ -56,6 +56,11 @@ export const api = {
     return response.data
   },
 
+  async getVideoInfo(videoId: string): Promise<VideoInfo> {
+    const response = await client.get<VideoInfo>(`/video/${videoId}/info`)
+    return response.data
+  },
+
   getVideoUrl(videoId: string): string {
     return `${API_BASE_URL}/video/${videoId}`
   },

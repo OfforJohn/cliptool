@@ -211,6 +211,36 @@ async def detect_scenes(video_id: str):
         raise HTTPException(status_code=500, detail=f"Scene detection failed: {str(e)}")
 
 
+@app.get("/api/video/{video_id}/info")
+async def get_video_info(video_id: str):
+    """Get video metadata by ID"""
+    video_path = None
+    video_ext = None
+    for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+        path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+        if os.path.exists(path):
+            video_path = path
+            video_ext = ext
+            break
+    
+    if not video_path:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    try:
+        info = video_processor.get_video_info(video_path)
+        return VideoInfo(
+            id=video_id,
+            filename=f"video{video_ext}",
+            duration=info["duration"],
+            width=info["width"],
+            height=info["height"],
+            fps=info["fps"],
+            size_mb=info["size_mb"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get video info: {str(e)}")
+
+
 @app.get("/api/video/{video_id}")
 async def get_video(video_id: str):
     """Get video file for streaming"""

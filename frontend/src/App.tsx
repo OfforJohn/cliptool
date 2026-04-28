@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Upload, Scissors, VolumeX, Sparkles, Plus } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Upload, Scissors, VolumeX, Sparkles, Plus, Link, Check } from 'lucide-react'
 import VideoUpload from './components/VideoUpload'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
@@ -8,21 +9,9 @@ import TranscriptionPanel from './components/TranscriptionPanel'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
-const STORAGE_KEY = 'cliptool_video'
-
 function App() {
-  const [video, setVideo] = useState<VideoInfo | null>(() => {
-    // Load from localStorage on initial render
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return null
-      }
-    }
-    return null
-  })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [video, setVideo] = useState<VideoInfo | null>(null)
   const [clipStart, setClipStart] = useState(0)
   const [clipEnd, setClipEnd] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
@@ -31,19 +20,32 @@ function App() {
   const [scenes, setScenes] = useState<Scene[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  // Save video to localStorage when it changes
+  // Load video from URL param on mount
   useEffect(() => {
-    if (video) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(video))
-      // Restore clip bounds if video was loaded from storage
-      if (clipEnd === 0) {
-        setClipEnd(video.duration)
-      }
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
+    const videoId = searchParams.get('v')
+    if (videoId && !video) {
+      loadVideoFromId(videoId)
     }
-  }, [video])
+  }, [searchParams])
+
+  const loadVideoFromId = async (videoId: string) => {
+    setIsLoadingVideo(true)
+    try {
+      const info = await api.getVideoInfo(videoId)
+      setVideo(info)
+      setClipStart(0)
+      setClipEnd(info.duration)
+    } catch (error) {
+      console.error('Failed to load video:', error)
+      // Clear invalid video ID from URL
+      setSearchParams({})
+    } finally {
+      setIsLoadingVideo(false)
+    }
+  }
 
   const handleVideoUploaded = (info: VideoInfo) => {
     setVideo(info)
@@ -51,6 +53,8 @@ function App() {
     setClipEnd(info.duration)
     setTranscription(null)
     setScenes([])
+    // Update URL with video ID
+    setSearchParams({ v: info.id })
   }
 
   const handleNewVideo = () => {
@@ -59,7 +63,16 @@ function App() {
     setClipEnd(0)
     setTranscription(null)
     setScenes([])
-    localStorage.removeItem(STORAGE_KEY)
+    // Clear URL param
+    setSearchParams({})
+  }
+
+  const copyShareLink = () => {
+    if (!video) return
+    const url = `${window.location.origin}?v=${video.id}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleTranscribe = async () => {
@@ -153,14 +166,22 @@ function App() {
           <div className="flex items-center gap-3">
             <Scissors className="w-8 h-8 text-blue-500" />
             <h1 className="text-2xl font-bold text-white">ClipTool</h1>
-            <span className="text-sm text-slate-400">AI-Powered Video Clipping</span>
+            <span className="text-sm text-slate-400 hidden sm:inline">AI-Powered Video Clipping</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {video && (
               <>
-                <div className="text-sm text-slate-400">
-                  {video.filename} • {video.duration.toFixed(1)}s • {video.width}x{video.height}
+                <div className="text-sm text-slate-400 hidden md:block">
+                  {video.filename} • {video.duration.toFixed(1)}s
                 </div>
+                <button
+                  onClick={copyShareLink}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm transition"
+                  title="Copy shareable link"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Link className="w-4 h-4" />}
+                  {copied ? 'Copied!' : 'Share'}
+                </button>
                 <button
                   onClick={handleNewVideo}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm transition"
@@ -175,7 +196,12 @@ function App() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {!video ? (
+        {isLoadingVideo ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-white text-lg">Loading video...</p>
+          </div>
+        ) : !video ? (
           <VideoUpload onUploaded={handleVideoUploaded} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
