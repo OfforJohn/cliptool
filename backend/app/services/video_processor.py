@@ -178,3 +178,46 @@ class VideoProcessor:
             return output_path
         except ffmpeg.Error as e:
             raise Exception(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+    
+    def compress_video(
+        self, 
+        input_path: str, 
+        output_path: str,
+        max_width: int = 1280,
+        max_height: int = 720,
+        crf: int = 28
+    ) -> Dict[str, Any]:
+        """Compress video for faster processing and smaller file size"""
+        try:
+            # Get original info
+            original_info = self.get_video_info(input_path)
+            original_size = original_info['size_mb']
+            
+            # Build scale filter maintaining aspect ratio
+            scale_filter = f"scale='min({max_width},iw)':min'({max_height},ih)':force_original_aspect_ratio=decrease"
+            
+            stream = ffmpeg.input(input_path)
+            stream = stream.output(
+                output_path,
+                vf=scale_filter,
+                vcodec='libx264',
+                preset='fast',
+                crf=crf,
+                acodec='aac',
+                audio_bitrate='128k',
+                movflags='+faststart'
+            )
+            stream.overwrite_output().run(capture_stdout=True, capture_stderr=True)
+            
+            # Get compressed info
+            compressed_info = self.get_video_info(output_path)
+            compressed_size = compressed_info['size_mb']
+            
+            return {
+                'original_size_mb': original_size,
+                'compressed_size_mb': compressed_size,
+                'reduction_percent': round((1 - compressed_size / original_size) * 100, 1) if original_size > 0 else 0,
+                'output_path': output_path
+            }
+        except ffmpeg.Error as e:
+            raise Exception(f"FFmpeg compression error: {e.stderr.decode() if e.stderr else str(e)}")

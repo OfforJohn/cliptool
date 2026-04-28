@@ -232,6 +232,40 @@ async def delete_video(video_id: str):
     raise HTTPException(status_code=404, detail="Video not found")
 
 
+@app.post("/api/compress")
+async def compress_video(video_id: str):
+    """Compress a video for faster processing"""
+    video_path = None
+    video_ext = None
+    for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+        path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+        if os.path.exists(path):
+            video_path = path
+            video_ext = ext
+            break
+    
+    if not video_path:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    try:
+        # Compress to a new file
+        compressed_id = str(uuid.uuid4())
+        compressed_path = os.path.join(UPLOAD_DIR, f"{compressed_id}.mp4")
+        
+        result = video_processor.compress_video(video_path, compressed_path)
+        
+        # Return info about compression
+        return {
+            "original_video_id": video_id,
+            "compressed_video_id": compressed_id,
+            "original_size_mb": result["original_size_mb"],
+            "compressed_size_mb": result["compressed_size_mb"],
+            "reduction_percent": result["reduction_percent"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Compression failed: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

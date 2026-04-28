@@ -45,3 +45,11 @@ export interface ClipResult {
   clip_id: string
   download_url: string
 }
+
+export interface CompressionResult {
+  original_video_id: string
+  compressed_video_id: string
+  original_size_mb: number
+  compressed_size_mb: number
+  reduction_percent: number
+}
