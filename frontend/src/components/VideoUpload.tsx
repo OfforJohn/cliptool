@@ -25,15 +25,9 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
     setUploadProgress(0)
 
     try {
-      // Simulate progress (actual progress would need XMLHttpRequest or fetch with streams)
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90))
-      }, 200)
-
-      const info = await api.uploadVideo(file)
-      
-      clearInterval(progressInterval)
-      setUploadProgress(100)
+      const info = await api.uploadVideo(file, (percent) => {
+        setUploadProgress(percent)
+      })
       
       setTimeout(() => {
         onUploaded(info)
