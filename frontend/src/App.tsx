@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Scissors, Volume2, VolumeX, Sparkles, Download } from 'lucide-react'
+import { Upload, Scissors, VolumeX, Sparkles } from 'lucide-react'
 import VideoUpload from './components/VideoUpload'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
