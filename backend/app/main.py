@@ -70,6 +70,46 @@ async def root():
     return {"message": "ClipTool API is running"}
 
 
+@app.get("/api/videos")
+async def list_videos():
+    """List all uploaded videos from R2 storage and local storage"""
+    videos = []
+    seen_ids = set()
+    
+    # Get videos from R2
+    if r2_storage.enabled:
+        r2_files = r2_storage.list_files("videos/")
+        for f in r2_files:
+            if f['video_id'] not in seen_ids:
+                videos.append({
+                    'id': f['video_id'],
+                    'filename': f['filename'],
+                    'size_mb': round(f['size'] / (1024 * 1024), 2),
+                    'uploaded_at': f['last_modified'],
+                    'source': 'cloud'
+                })
+                seen_ids.add(f['video_id'])
+    
+    # Also check local storage for videos not yet in R2
+    for filename in os.listdir(UPLOAD_DIR):
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            video_id = os.path.splitext(filename)[0]
+            if video_id not in seen_ids:
+                file_path = os.path.join(UPLOAD_DIR, filename)
+                stat = os.stat(file_path)
+                videos.append({
+                    'id': video_id,
+                    'filename': filename,
+                    'size_mb': round(stat.st_size / (1024 * 1024), 2),
+                    'uploaded_at': None,
+                    'source': 'local'
+                })
+                seen_ids.add(video_id)
+    
+    return {'videos': videos}
+
+
 @app.post("/api/upload", response_model=VideoInfo)
 async def upload_video(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """Upload a video file for processing"""

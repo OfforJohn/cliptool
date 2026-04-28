@@ -1,7 +1,7 @@
 import boto3
 from botocore.config import Config
 import os
-from typing import Optional, BinaryIO
+from typing import Optional, BinaryIO, List, Dict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -132,3 +132,34 @@ class R2Storage:
         # For R2 with custom domain or public bucket
         # Default R2 doesn't have public URLs, so we use presigned URLs
         return self.get_presigned_url(object_key, expires_in=86400) or ""
+    
+    def list_files(self, prefix: str = "videos/") -> List[Dict]:
+        """List all files in R2 with the given prefix"""
+        if not self.enabled:
+            return []
+        
+        try:
+            response = self.client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=prefix
+            )
+            
+            files = []
+            for obj in response.get('Contents', []):
+                key = obj['Key']
+                # Extract video ID from key (e.g., "videos/uuid.mp4" -> "uuid")
+                filename = key.replace(prefix, '')
+                video_id = filename.rsplit('.', 1)[0] if '.' in filename else filename
+                
+                files.append({
+                    'key': key,
+                    'video_id': video_id,
+                    'size': obj['Size'],
+                    'last_modified': obj['LastModified'].isoformat(),
+                    'filename': filename
+                })
+            
+            return files
+        except Exception as e:
+            logger.error(f"Failed to list R2 files: {e}")
+            return []

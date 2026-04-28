@@ -6,6 +6,7 @@ import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
 import ClipControls from './components/ClipControls'
 import TranscriptionPanel from './components/TranscriptionPanel'
+import VideoLibrary from './components/VideoLibrary'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
@@ -202,7 +203,10 @@ function App() {
             <p className="text-white text-lg">Loading video...</p>
           </div>
         ) : !video ? (
-          <VideoUpload onUploaded={handleVideoUploaded} />
+          <div className="space-y-6">
+            <VideoUpload onUploaded={handleVideoUploaded} />
+            <VideoLibrary onSelectVideo={loadVideoFromId} />
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Video Area */}

@@ -61,6 +61,11 @@ export const api = {
     return response.data
   },
 
+  async listVideos(): Promise<{ videos: Array<{ id: string; filename: string; size_mb: number; uploaded_at: string | null; source: string }> }> {
+    const response = await client.get('/videos')
+    return response.data
+  },
+
   getVideoUrl(videoId: string): string {
     return `${API_BASE_URL}/video/${videoId}`
   },
