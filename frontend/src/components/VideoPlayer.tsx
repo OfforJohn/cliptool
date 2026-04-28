@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward } from 'lucide-react'
 import { api } from '../api'
+import { VIDEO_FORMATS } from './FormatSelector'
 
 interface VideoPlayerProps {
   videoId: string
@@ -8,6 +9,9 @@ interface VideoPlayerProps {
   onTimeUpdate: (time: number) => void
   clipStart: number
   clipEnd: number
+  videoFormat?: string
+  videoWidth?: number
+  videoHeight?: number
 }
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -18,6 +22,9 @@ export default function VideoPlayer({
   onTimeUpdate,
   clipStart,
   clipEnd,
+  videoFormat = 'original',
+  videoWidth = 1920,
+  videoHeight = 1080,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
@@ -34,6 +41,39 @@ export default function VideoPlayer({
   const [hoverPosition, setHoverPosition] = useState(0)
   const [isBuffering, setIsBuffering] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Get selected format data
+  const selectedFormat = VIDEO_FORMATS.find(f => f.id === videoFormat)
+  const isOriginalFormat = videoFormat === 'original' || !selectedFormat
+
+  // Calculate crop overlay dimensions
+  const getCropOverlay = () => {
+    if (isOriginalFormat || !selectedFormat) return null
+    
+    const targetAspect = selectedFormat.width / selectedFormat.height
+    const sourceAspect = videoWidth / videoHeight
+    
+    // Calculate what percentage of the video will be visible
+    let visibleWidth = 100
+    let visibleHeight = 100
+    
+    if (sourceAspect > targetAspect) {
+      // Source is wider - crop sides
+      visibleWidth = (targetAspect / sourceAspect) * 100
+    } else {
+      // Source is taller - crop top/bottom
+      visibleHeight = (sourceAspect / targetAspect) * 100
+    }
+    
+    return {
+      visibleWidth,
+      visibleHeight,
+      cropLeft: (100 - visibleWidth) / 2,
+      cropTop: (100 - visibleHeight) / 2,
+    }
+  }
+
+  const cropOverlay = getCropOverlay()
 
   useEffect(() => {
     const video = videoRef.current
@@ -306,6 +346,52 @@ export default function VideoPlayer({
           playsInline
           onClick={togglePlay}
         />
+        
+        {/* Format crop overlay - shows what will be cropped out */}
+        {cropOverlay && (
+          <>
+            {/* Top crop area */}
+            {cropOverlay.cropTop > 0 && (
+              <div 
+                className="absolute left-0 right-0 top-0 bg-black/70 pointer-events-none transition-all duration-300"
+                style={{ height: `${cropOverlay.cropTop}%` }}
+              >
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500/50" />
+              </div>
+            )}
+            {/* Bottom crop area */}
+            {cropOverlay.cropTop > 0 && (
+              <div 
+                className="absolute left-0 right-0 bottom-0 bg-black/70 pointer-events-none transition-all duration-300"
+                style={{ height: `${cropOverlay.cropTop}%` }}
+              >
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-purple-500/50" />
+              </div>
+            )}
+            {/* Left crop area */}
+            {cropOverlay.cropLeft > 0 && (
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-black/70 pointer-events-none transition-all duration-300"
+                style={{ width: `${cropOverlay.cropLeft}%` }}
+              >
+                <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-purple-500/50" />
+              </div>
+            )}
+            {/* Right crop area */}
+            {cropOverlay.cropLeft > 0 && (
+              <div 
+                className="absolute right-0 top-0 bottom-0 bg-black/70 pointer-events-none transition-all duration-300"
+                style={{ width: `${cropOverlay.cropLeft}%` }}
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-purple-500/50" />
+              </div>
+            )}
+            {/* Format label */}
+            <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full pointer-events-none z-10">
+              {selectedFormat?.name} ({selectedFormat?.aspectRatio})
+            </div>
+          </>
+        )}
         
         {/* Loading/Buffering spinner */}
         {(isLoading || isBuffering) && (

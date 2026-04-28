@@ -225,6 +225,9 @@ function App() {
                 onTimeUpdate={setCurrentTime}
                 clipStart={clipStart}
                 clipEnd={clipEnd}
+                videoFormat={videoFormat}
+                videoWidth={video.width}
+                videoHeight={video.height}
               />
 
               <Timeline
