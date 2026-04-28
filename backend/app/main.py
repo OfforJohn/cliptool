@@ -49,6 +49,19 @@ class ClipRequest(BaseModel):
     end_time: float
     remove_audio: bool = False
     output_format: str = "mp4"
+    video_format: Optional[str] = None  # Social media format preset
+
+
+# Video format presets for social media
+VIDEO_FORMAT_PRESETS = {
+    'tiktok': {'width': 1080, 'height': 1920, 'aspect': '9:16'},
+    'youtube-shorts': {'width': 1080, 'height': 1920, 'aspect': '9:16'},
+    'instagram-reel': {'width': 1080, 'height': 1920, 'aspect': '9:16'},
+    'instagram-feed': {'width': 1080, 'height': 1350, 'aspect': '4:5'},
+    'instagram-square': {'width': 1080, 'height': 1080, 'aspect': '1:1'},
+    'youtube': {'width': 1920, 'height': 1080, 'aspect': '16:9'},
+    'twitter': {'width': 1280, 'height': 720, 'aspect': '16:9'},
+}
 
 
 class TranscriptionRequest(BaseModel):
@@ -252,13 +265,27 @@ async def create_clip(request: ClipRequest):
     output_path = os.path.join(OUTPUT_DIR, f"{output_id}.{request.output_format}")
     
     try:
-        video_processor.create_clip(
-            input_path=video_path,
-            output_path=output_path,
-            start_time=request.start_time,
-            end_time=request.end_time,
-            remove_audio=request.remove_audio
-        )
+        # Check if a social media format preset is requested
+        if request.video_format and request.video_format in VIDEO_FORMAT_PRESETS:
+            format_preset = VIDEO_FORMAT_PRESETS[request.video_format]
+            video_processor.create_clip_with_format(
+                input_path=video_path,
+                output_path=output_path,
+                start_time=request.start_time,
+                end_time=request.end_time,
+                target_width=format_preset['width'],
+                target_height=format_preset['height'],
+                remove_audio=request.remove_audio
+            )
+        else:
+            # Original clip creation without format change
+            video_processor.create_clip(
+                input_path=video_path,
+                output_path=output_path,
+                start_time=request.start_time,
+                end_time=request.end_time,
+                remove_audio=request.remove_audio
+            )
         return {
             "clip_id": output_id,
             "download_url": f"/outputs/{output_id}.{request.output_format}"

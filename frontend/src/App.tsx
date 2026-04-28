@@ -8,6 +8,7 @@ import TranscriptionPanel from './components/TranscriptionPanel'
 import VideoLibrary from './components/VideoLibrary'
 import HeroSection from './components/HeroSection'
 import UploadSection from './components/UploadSection'
+import FormatSelector from './components/FormatSelector'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
@@ -24,6 +25,7 @@ function App() {
   const [processingStatus, setProcessingStatus] = useState('')
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [videoFormat, setVideoFormat] = useState('original')
   const uploadRef = useRef<HTMLDivElement>(null)
 
   const scrollToUpload = () => {
@@ -60,6 +62,7 @@ function App() {
     setClipEnd(info.duration)
     setTranscription(null)
     setScenes([])
+    setVideoFormat('original')
     // Update URL with video ID
     setSearchParams({ v: info.id })
   }
@@ -70,6 +73,7 @@ function App() {
     setClipEnd(0)
     setTranscription(null)
     setScenes([])
+    setVideoFormat('original')
     // Clear URL param
     setSearchParams({})
   }
@@ -124,12 +128,14 @@ function App() {
         start_time: clipStart,
         end_time: clipEnd,
         remove_audio: removeAudio,
-        output_format: 'mp4'
+        output_format: 'mp4',
+        video_format: videoFormat !== 'original' ? videoFormat : undefined
       })
       
       // Download the clip using blob (works cross-origin)
       setProcessingStatus('Downloading clip...')
-      await api.downloadFile(result.download_url, `clip_${Date.now()}.mp4`)
+      const formatSuffix = videoFormat !== 'original' ? `_${videoFormat}` : ''
+      await api.downloadFile(result.download_url, `clip${formatSuffix}_${Date.now()}.mp4`)
     } catch (error) {
       console.error('Clip creation failed:', error)
       alert('Failed to create clip.')
@@ -243,6 +249,12 @@ function App() {
                 onRemoveAudioChange={setRemoveAudio}
                 onCreateClip={handleCreateClip}
                 isProcessing={isProcessing}
+              />
+
+              <FormatSelector
+                selectedFormat={videoFormat}
+                onFormatChange={setVideoFormat}
+                clipDuration={clipEnd - clipStart}
               />
             </div>
 

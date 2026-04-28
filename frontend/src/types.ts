@@ -8,12 +8,24 @@ export interface VideoInfo {
   size_mb: number
 }
 
+export interface VideoFormat {
+  id: string
+  name: string
+  platform: string
+  aspectRatio: string
+  width: number
+  height: number
+  maxDuration?: number  // in seconds
+  icon: string
+}
+
 export interface ClipRequest {
   video_id: string
   start_time: number
   end_time: number
   remove_audio: boolean
   output_format: string
+  video_format?: string  // Social media format preset
 }
 
 export interface TranscriptionSegment {

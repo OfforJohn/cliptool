@@ -179,6 +179,72 @@ class VideoProcessor:
         except ffmpeg.Error as e:
             raise Exception(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
     
+    def create_clip_with_format(
+        self,
+        input_path: str,
+        output_path: str,
+        start_time: float,
+        end_time: float,
+        target_width: int,
+        target_height: int,
+        remove_audio: bool = False
+    ) -> str:
+        """Create a clip with specific dimensions (crop and scale for social media formats)"""
+        duration = end_time - start_time
+        
+        try:
+            # Get source video dimensions
+            info = self.get_video_info(input_path)
+            src_width = info['width']
+            src_height = info['height']
+            
+            # Calculate target aspect ratio
+            target_aspect = target_width / target_height
+            src_aspect = src_width / src_height
+            
+            # Build filter chain
+            # First crop to target aspect ratio, then scale to target dimensions
+            if src_aspect > target_aspect:
+                # Source is wider - crop width
+                crop_height = src_height
+                crop_width = int(src_height * target_aspect)
+                crop_x = (src_width - crop_width) // 2
+                crop_y = 0
+            else:
+                # Source is taller - crop height
+                crop_width = src_width
+                crop_height = int(src_width / target_aspect)
+                crop_x = 0
+                crop_y = (src_height - crop_height) // 2
+            
+            # Build FFmpeg command
+            stream = ffmpeg.input(input_path, ss=start_time, t=duration)
+            
+            # Apply crop and scale filters
+            stream = stream.filter('crop', crop_width, crop_height, crop_x, crop_y)
+            stream = stream.filter('scale', target_width, target_height)
+            
+            # Output settings
+            output_args = {
+                'vcodec': 'libx264',
+                'preset': 'fast',
+                'crf': 23,
+                'pix_fmt': 'yuv420p',  # Ensure compatibility
+            }
+            
+            if remove_audio:
+                output_args['an'] = None
+            else:
+                output_args['acodec'] = 'aac'
+                output_args['audio_bitrate'] = '128k'
+            
+            stream = stream.output(output_path, **output_args)
+            stream.overwrite_output().run(capture_stdout=True, capture_stderr=True)
+            
+            return output_path
+        except ffmpeg.Error as e:
+            raise Exception(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+    
     def compress_video(
         self, 
         input_path: str, 
