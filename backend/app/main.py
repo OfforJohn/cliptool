@@ -33,9 +33,9 @@ OUTPUT_DIR = "outputs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Mount static files
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
+# Mount static files under /api to match API routes
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/api/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Services
 video_processor = VideoProcessor()
