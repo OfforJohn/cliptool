@@ -83,9 +83,9 @@ export async function compressVideo(
   await ff.deleteFile(inputName)
   await ff.deleteFile(outputName)
 
-  // Convert to ArrayBuffer to fix TypeScript compatibility
-  const arrayBuffer = (data as Uint8Array).buffer.slice(0)
-  const compressedBlob = new Blob([arrayBuffer], { type: 'video/mp4' })
+  // Convert to Uint8Array and create blob
+  const uint8Array = new Uint8Array(data as Uint8Array)
+  const compressedBlob = new Blob([uint8Array], { type: 'video/mp4' })
   const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.mp4'), {
     type: 'video/mp4'
   })
