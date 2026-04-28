@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Upload, Scissors, VolumeX, Sparkles, Plus, Link, Check } from 'lucide-react'
-import VideoUpload from './components/VideoUpload'
+import { Scissors, VolumeX, Sparkles, Plus, Link, Check, Upload } from 'lucide-react'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
 import ClipControls from './components/ClipControls'
 import TranscriptionPanel from './components/TranscriptionPanel'
 import VideoLibrary from './components/VideoLibrary'
+import HeroSection from './components/HeroSection'
+import UploadSection from './components/UploadSection'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
@@ -23,6 +24,11 @@ function App() {
   const [processingStatus, setProcessingStatus] = useState('')
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
   const [copied, setCopied] = useState(false)
+  const uploadRef = useRef<HTMLDivElement>(null)
+
+  const scrollToUpload = () => {
+    uploadRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   // Load video from URL param on mount
   useEffect(() => {
@@ -203,9 +209,12 @@ function App() {
             <p className="text-white text-lg">Loading video...</p>
           </div>
         ) : !video ? (
-          <div className="space-y-6">
-            <VideoUpload onUploaded={handleVideoUploaded} />
-            <VideoLibrary onSelectVideo={loadVideoFromId} />
+          <div className="space-y-0">
+            <HeroSection onScrollToUpload={scrollToUpload} />
+            <UploadSection onUploaded={handleVideoUploaded} uploadRef={uploadRef} />
+            <div className="max-w-4xl mx-auto px-4 pb-12">
+              <VideoLibrary onSelectVideo={loadVideoFromId} />
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
