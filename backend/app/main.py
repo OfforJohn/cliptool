@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
@@ -10,6 +10,7 @@ import shutil
 
 from app.services.video_processor import VideoProcessor
 from app.services.ai_service import AIService
+from app.services.r2_storage import R2Storage
 
 app = FastAPI(title="ClipTool API", version="1.0.0")
 
@@ -39,6 +40,7 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 # Services
 video_processor = VideoProcessor()
 ai_service = AIService()
+r2_storage = R2Storage()
 
 
 class ClipRequest(BaseModel):
@@ -69,7 +71,7 @@ async def root():
 
 
 @app.post("/api/upload", response_model=VideoInfo)
-async def upload_video(file: UploadFile = File(...)):
+async def upload_video(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """Upload a video file for processing"""
     print(f"Upload received: filename={file.filename}, content_type={file.content_type}")
     
@@ -96,6 +98,14 @@ async def upload_video(file: UploadFile = File(...)):
     try:
         info = video_processor.get_video_info(file_path)
         print(f"Video info: {info}")
+        
+        # Upload to R2 in background if enabled
+        if r2_storage.enabled:
+            r2_key = f"videos/{video_id}{ext}"
+            content_type = file.content_type or "video/mp4"
+            r2_storage.upload_file(file_path, r2_key, content_type)
+            print(f"Uploaded to R2: {r2_key}")
+        
         return VideoInfo(
             id=video_id,
             filename=file.filename,
@@ -216,12 +226,27 @@ async def get_video_info(video_id: str):
     """Get video metadata by ID"""
     video_path = None
     video_ext = None
+    
+    # First check local storage
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
         if os.path.exists(path):
             video_path = path
             video_ext = ext
             break
+    
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                # Download to local for processing
+                local_path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                    video_ext = ext
+                    print(f"Downloaded from R2: {r2_key}")
+                break
     
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -244,21 +269,51 @@ async def get_video_info(video_id: str):
 @app.get("/api/video/{video_id}")
 async def get_video(video_id: str):
     """Get video file for streaming"""
+    # First check local storage
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
         if os.path.exists(path):
             return FileResponse(path, media_type="video/mp4")
+    
+    # If not found locally, try R2 presigned URL (redirect)
+    if r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                presigned_url = r2_storage.get_presigned_url(r2_key, expires_in=3600)
+                if presigned_url:
+                    return RedirectResponse(url=presigned_url)
     raise HTTPException(status_code=404, detail="Video not found")
 
 
 @app.delete("/api/video/{video_id}")
 async def delete_video(video_id: str):
     """Delete an uploaded video"""
+    deleted = False
+    
+    # Delete from local storage
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
         if os.path.exists(path):
             os.remove(path)
-            return {"message": "Video deleted"}
+            deleted = True
+            
+            # Also delete from R2 if enabled
+            if r2_storage.enabled:
+                r2_key = f"videos/{video_id}{ext}"
+                r2_storage.delete_file(r2_key)
+            break
+    
+    # If not deleted locally, try R2 only
+    if not deleted and r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.delete_file(r2_key):
+                deleted = True
+                break
+    
+    if deleted:
+        return {"message": "Video deleted"}
     raise HTTPException(status_code=404, detail="Video not found")
 
 
