@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward, Settings } from 'lucide-react'
+import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward } from 'lucide-react'
 import { api } from '../api'
 
 interface VideoPlayerProps {
