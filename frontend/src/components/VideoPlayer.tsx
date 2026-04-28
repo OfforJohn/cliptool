@@ -32,6 +32,8 @@ export default function VideoPlayer({
   const [isHovering, setIsHovering] = useState(false)
   const [hoverTime, setHoverTime] = useState(0)
   const [hoverPosition, setHoverPosition] = useState(0)
+  const [isBuffering, setIsBuffering] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const video = videoRef.current
@@ -48,6 +50,7 @@ export default function VideoPlayer({
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration)
+      setIsLoading(false)
     }
 
     const handlePlay = () => setIsPlaying(true)
@@ -59,11 +62,26 @@ export default function VideoPlayer({
       }
     }
 
+    // Buffering events
+    const handleWaiting = () => setIsBuffering(true)
+    const handleCanPlay = () => {
+      setIsBuffering(false)
+      setIsLoading(false)
+    }
+    const handleSeeking = () => setIsBuffering(true)
+    const handleSeeked = () => setIsBuffering(false)
+    const handleLoadStart = () => setIsLoading(true)
+
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
     video.addEventListener('progress', handleProgress)
+    video.addEventListener('waiting', handleWaiting)
+    video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('seeking', handleSeeking)
+    video.addEventListener('seeked', handleSeeked)
+    video.addEventListener('loadstart', handleLoadStart)
 
     return () => {
       video.removeEventListener('timeupdate', handleTimeUpdate)
@@ -71,6 +89,11 @@ export default function VideoPlayer({
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('progress', handleProgress)
+      video.removeEventListener('waiting', handleWaiting)
+      video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('seeking', handleSeeking)
+      video.removeEventListener('seeked', handleSeeked)
+      video.removeEventListener('loadstart', handleLoadStart)
     }
   }, [onTimeUpdate, clipStart, clipEnd])
 
@@ -284,11 +307,21 @@ export default function VideoPlayer({
           onClick={togglePlay}
         />
         
+        {/* Loading/Buffering spinner */}
+        {(isLoading || isBuffering) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-red-500/30 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          </div>
+        )}
+        
         {/* Click to play/pause overlay */}
         <div 
           className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
         >
-          {!isPlaying && (
+          {!isPlaying && !isLoading && !isBuffering && (
             <div className="bg-black/50 rounded-full p-4">
               <Play className="w-12 h-12 text-white" />
             </div>
