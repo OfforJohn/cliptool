@@ -1,4 +1,4 @@
-import { Scissors, Sparkles, Zap, Share2, Wand2, CloudUpload } from 'lucide-react'
+import { Scissors, Sparkles, Zap, Share2, Wand2, Upload } from 'lucide-react'
 
 interface HeroSectionProps {
   onScrollToUpload: () => void
@@ -36,7 +36,7 @@ export default function HeroSection({ onScrollToUpload }: HeroSectionProps) {
             onClick={onScrollToUpload}
             className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl text-lg transition-all hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25"
           >
-            <CloudUpload className="w-6 h-6" />
+            <Upload className="w-6 h-6" />
             Start Clipping Now
           </button>
         </div>

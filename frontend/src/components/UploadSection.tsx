@@ -5,7 +5,7 @@ import { VideoInfo } from '../types'
 
 interface UploadSectionProps {
   onUploaded: (info: VideoInfo) => void
-  uploadRef?: React.RefObject<HTMLDivElement | null>
+  uploadRef?: React.RefObject<HTMLDivElement>
 }
 
 // Threshold for suggesting server-side compression (50MB)
@@ -99,7 +99,7 @@ export default function UploadSection({ onUploaded, uploadRef }: UploadSectionPr
   }
 
   return (
-    <div ref={uploadRef} className="max-w-4xl mx-auto px-4 py-12" id="upload-section">
+    <div ref={uploadRef as React.RefObject<HTMLDivElement>} className="max-w-4xl mx-auto px-4 py-12" id="upload-section">
       <div className="text-center mb-8">
         <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
           Upload Your Video
