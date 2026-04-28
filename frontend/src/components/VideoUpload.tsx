@@ -32,8 +32,8 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
     try {
       let fileToUpload = file
       
-      // Compress if file is larger than 50MB
-      if (shouldCompress(file, 50)) {
+      // Compress if file is larger than 100MB
+      if (shouldCompress(file, 100)) {
         setIsCompressing(true)
         setStatusMessage('Compressing video for faster upload...')
         

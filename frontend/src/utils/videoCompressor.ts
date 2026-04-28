@@ -62,14 +62,13 @@ export async function compressVideo(
     onProgress?.(percent, 'Compressing video...')
   })
 
-  // Compress with reasonable quality/size balance
+  // Compress with ultrafast preset for speed (browser WASM is slow)
   await ff.exec([
     '-i', inputName,
     '-vf', `scale='min(${maxWidth},iw)':min'(${maxHeight},ih)':force_original_aspect_ratio=decrease`,
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '28',
-    '-b:v', videoBitrate,
+    '-preset', 'ultrafast',
+    '-crf', '30',
     '-c:a', 'aac',
     '-b:a', audioBitrate,
     '-movflags', '+faststart',
@@ -108,6 +107,6 @@ function formatSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-export function shouldCompress(file: File, maxSizeMB: number = 50): boolean {
+export function shouldCompress(file: File, maxSizeMB: number = 100): boolean {
   return file.size > maxSizeMB * 1024 * 1024
 }
