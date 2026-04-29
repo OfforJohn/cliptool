@@ -89,13 +89,22 @@ function App() {
   const handleTranscribe = async () => {
     if (!video) return
     setIsProcessing(true)
-    setProcessingStatus('Transcribing with AI...')
+    setProcessingStatus('Transcribing with AI (this may take a few minutes)...')
     try {
       const result = await api.transcribe(video.id)
       setTranscription(result)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Transcription failed:', error)
-      alert('Transcription failed. Make sure Whisper is installed.')
+      let errorMessage = 'Transcription failed. '
+      if (error instanceof Error && error.message.includes('timeout')) {
+        errorMessage += 'The operation timed out. Try with a shorter video or check server logs.'
+      } else if (error instanceof Error && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } }
+        errorMessage += axiosError.response?.data?.detail || 'Server error occurred.'
+      } else {
+        errorMessage += 'An unexpected error occurred.'
+      }
+      alert(errorMessage)
     } finally {
       setIsProcessing(false)
       setProcessingStatus('')

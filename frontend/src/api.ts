@@ -9,6 +9,12 @@ const client = axios.create({
   timeout: 300000, // 5 min for large uploads/processing
 })
 
+// Longer timeout client for AI operations (transcription, scene detection)
+const aiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 900000, // 15 min for AI transcription (model loading + processing)
+})
+
 interface PresignedUploadResponse {
   video_id: string
   upload_url: string
@@ -109,12 +115,14 @@ export const api = {
   },
 
   async transcribe(videoId: string): Promise<Transcription> {
-    const response = await client.post<Transcription>('/transcribe', { video_id: videoId })
+    // Use longer timeout client for AI operations
+    const response = await aiClient.post<Transcription>('/transcribe', { video_id: videoId })
     return response.data
   },
 
   async detectScenes(videoId: string): Promise<{ scenes: Scene[] }> {
-    const response = await client.post<{ scenes: Scene[] }>(`/detect-scenes?video_id=${videoId}`)
+    // Use longer timeout client for AI operations
+    const response = await aiClient.post<{ scenes: Scene[] }>(`/detect-scenes?video_id=${videoId}`)
     return response.data
   },
 

@@ -326,6 +326,7 @@ async def remove_audio(video_id: str):
 @app.post("/api/transcribe")
 async def transcribe_video(request: TranscriptionRequest):
     """Transcribe video audio using Whisper AI"""
+    print(f"Transcription request for video: {request.video_id}")
     video_path = None
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
@@ -337,9 +338,12 @@ async def transcribe_video(request: TranscriptionRequest):
         raise HTTPException(status_code=404, detail="Video not found")
     
     try:
+        print(f"Starting transcription for: {video_path}")
         transcription = ai_service.transcribe(video_path)
+        print(f"Transcription completed successfully")
         return transcription
     except Exception as e:
+        print(f"Transcription failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 

@@ -8,15 +8,26 @@ class AIService:
     
     def __init__(self):
         self._whisper_model = None
+        self._model_loaded = False
     
     @property
     def whisper_model(self):
         """Lazy load Whisper model using faster-whisper"""
         if self._whisper_model is None:
-            from faster_whisper import WhisperModel
-            # Use 'base' model for balance of speed/accuracy
-            # Options: tiny, base, small, medium, large-v2
-            self._whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+            try:
+                from faster_whisper import WhisperModel
+                # Use WHISPER_MODEL env var
+                # Default: 'large-v2' on Render (RENDER=true), 'base' locally
+                is_render = os.getenv("RENDER", "").lower() == "true"
+                default_model = "large-v2" if is_render else "base"
+                model_size = os.getenv("WHISPER_MODEL", default_model)
+                print(f"Loading Whisper model: {model_size} (Render: {is_render})")
+                self._whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                self._model_loaded = True
+                print(f"Whisper model '{model_size}' loaded successfully")
+            except Exception as e:
+                print(f"Failed to load Whisper model: {e}")
+                raise Exception(f"Failed to load Whisper AI model: {str(e)}. Check server logs.")
         return self._whisper_model
     
     def transcribe(self, video_path: str) -> Dict[str, Any]:
