@@ -16,7 +16,10 @@ app = FastAPI(title="ClipTool API", version="1.0.0")
 
 # CORS for React frontend
 # In production, set CORS_ORIGINS env var to your Vercel frontend URL
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:3000")
+cors_origins = os.getenv(
+    "CORS_ORIGINS", 
+    "http://localhost:5173,http://localhost:5174,http://localhost:3000,https://cliptool-7esz.vercel.app"
+)
 allowed_origins = [origin.strip() for origin in cors_origins.split(",")]
 
 app.add_middleware(
