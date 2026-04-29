@@ -224,19 +224,20 @@ class VideoProcessor:
             stream = stream.filter('crop', crop_width, crop_height, crop_x, crop_y)
             stream = stream.filter('scale', target_width, target_height)
             
-            # Output settings
+            # Output settings - use ultrafast preset for minimal memory usage on free hosting
             output_args = {
                 'vcodec': 'libx264',
-                'preset': 'fast',
-                'crf': 23,
+                'preset': 'ultrafast',  # Minimal memory usage
+                'crf': 26,  # Slightly higher for faster encoding
                 'pix_fmt': 'yuv420p',  # Ensure compatibility
+                'threads': 1,  # Limit threads to reduce memory
             }
             
             if remove_audio:
                 output_args['an'] = None
             else:
                 output_args['acodec'] = 'aac'
-                output_args['audio_bitrate'] = '128k'
+                output_args['audio_bitrate'] = '96k'  # Lower bitrate for memory
             
             stream = stream.output(output_path, **output_args)
             stream.overwrite_output().run(capture_stdout=True, capture_stderr=True)
