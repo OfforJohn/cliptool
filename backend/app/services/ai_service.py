@@ -9,6 +9,7 @@ class AIService:
     def __init__(self):
         self._whisper_model = None
         self._model_loaded = False
+        self._model_size = None
     
     @property
     def whisper_model(self):
@@ -20,11 +21,11 @@ class AIService:
                 # Default: 'large-v2' on Render (RENDER=true), 'base' locally
                 is_render = os.getenv("RENDER", "").lower() == "true"
                 default_model = "large-v2" if is_render else "base"
-                model_size = os.getenv("WHISPER_MODEL", default_model)
-                print(f"Loading Whisper model: {model_size} (Render: {is_render})")
-                self._whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                self._model_size = os.getenv("WHISPER_MODEL", default_model)
+                print(f"Loading Whisper model: {self._model_size} (Render: {is_render})")
+                self._whisper_model = WhisperModel(self._model_size, device="cpu", compute_type="int8")
                 self._model_loaded = True
-                print(f"Whisper model '{model_size}' loaded successfully")
+                print(f"Whisper model '{self._model_size}' loaded successfully")
             except Exception as e:
                 print(f"Failed to load Whisper model: {e}")
                 raise Exception(f"Failed to load Whisper AI model: {str(e)}. Check server logs.")
@@ -70,7 +71,8 @@ class AIService:
             return {
                 'text': ' '.join(full_text),
                 'language': info.language or 'en',
-                'segments': segments
+                'segments': segments,
+                'model': self._model_size or 'unknown'
             }
         except Exception as e:
             raise Exception(f"Transcription error: {str(e)}")

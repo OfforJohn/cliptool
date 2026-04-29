@@ -92,6 +92,7 @@ function App() {
     setProcessingStatus('Transcribing with AI (this may take a few minutes)...')
     try {
       const result = await api.transcribe(video.id)
+      console.log(`Transcription complete - Model: ${result.model || 'unknown'}, Language: ${result.language}`)
       setTranscription(result)
     } catch (error: unknown) {
       console.error('Transcription failed:', error)

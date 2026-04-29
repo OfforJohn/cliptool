@@ -44,6 +44,7 @@ export interface Transcription {
   text: string
   language: string
   segments: TranscriptionSegment[]
+  model?: string
 }
 
 export interface Scene {
