@@ -18,9 +18,9 @@ class AIService:
             try:
                 from faster_whisper import WhisperModel
                 # Use WHISPER_MODEL env var
-                # Default: 'small' on Render (good balance of speed/accuracy), 'base' locally
+                # Default: 'tiny' on Render (only model that fits free tier), 'base' locally
                 is_render = os.getenv("RENDER", "").lower() == "true"
-                default_model = "small" if is_render else "base"
+                default_model = "tiny" if is_render else "base"
                 self._model_size = os.getenv("WHISPER_MODEL", default_model)
                 print(f"Loading Whisper model: {self._model_size} (Render: {is_render})")
                 self._whisper_model = WhisperModel(self._model_size, device="cpu", compute_type="int8")
