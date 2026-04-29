@@ -90,6 +90,7 @@ function App() {
     if (!video) return
     setIsProcessing(true)
     setProcessingStatus('Transcribing with AI (this may take a few minutes)...')
+    console.log(`Starting transcription for video: ${video.id} (${video.filename})`)
     try {
       const result = await api.transcribe(video.id)
       console.log(`Transcription complete - Model: ${result.model || 'unknown'}, Language: ${result.language}`)
