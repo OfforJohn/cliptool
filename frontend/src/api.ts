@@ -104,6 +104,12 @@ export const api = {
     return response.data
   },
 
+  // Download video from a direct URL
+  async downloadFromUrl(url: string, filename?: string): Promise<VideoInfo> {
+    const response = await aiClient.post<VideoInfo>('/download-from-url', { url, filename })
+    return response.data
+  },
+
   async createClip(request: ClipRequest): Promise<ClipResult> {
     const response = await client.post<ClipResult>('/clip', request)
     return response.data

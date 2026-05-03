@@ -180,11 +180,14 @@ function App() {
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <button 
+            onClick={handleNewVideo}
+            className="flex items-center gap-3 hover:opacity-80 transition"
+          >
             <Scissors className="w-8 h-8 text-blue-500" />
             <h1 className="text-2xl font-bold text-white">ClipTool</h1>
             <span className="text-sm text-slate-400 hidden sm:inline">AI-Powered Video Clipping</span>
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             {video && (
               <>

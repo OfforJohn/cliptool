@@ -7,6 +7,9 @@ from typing import Optional, List
 import os
 import uuid
 import shutil
+import httpx
+import re
+from urllib.parse import urlparse, unquote
 
 from app.services.video_processor import VideoProcessor
 from app.services.ai_service import AIService
@@ -69,6 +72,11 @@ VIDEO_FORMAT_PRESETS = {
 
 class TranscriptionRequest(BaseModel):
     video_id: str
+
+
+class URLDownloadRequest(BaseModel):
+    url: str
+    filename: Optional[str] = None
 
 
 class VideoInfo(BaseModel):
@@ -247,6 +255,89 @@ async def upload_video(file: UploadFile = File(...), background_tasks: Backgroun
         print(f"Error processing video: {e}")
         os.remove(file_path)
         raise HTTPException(status_code=400, detail=f"Invalid video file: {str(e)}")
+
+
+@app.post("/api/download-from-url", response_model=VideoInfo)
+async def download_from_url(request: URLDownloadRequest):
+    """Download a video from a direct URL (user's own content)"""
+    print(f"URL download request: {request.url}")
+    
+    # Validate URL
+    try:
+        parsed = urlparse(request.url)
+        if not parsed.scheme in ['http', 'https']:
+            raise HTTPException(status_code=400, detail="Invalid URL scheme. Use http or https.")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL format")
+    
+    # Determine filename from URL or request
+    if request.filename:
+        filename = request.filename
+    else:
+        # Extract filename from URL path
+        path = unquote(parsed.path)
+        filename = os.path.basename(path) or "downloaded_video"
+    
+    # Ensure valid extension
+    valid_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in valid_extensions:
+        ext = '.mp4'
+        filename = os.path.splitext(filename)[0] + ext
+    
+    # Generate unique ID
+    video_id = str(uuid.uuid4())
+    file_path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+    
+    try:
+        # Download the video with streaming
+        async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+            async with client.stream('GET', request.url) as response:
+                if response.status_code != 200:
+                    raise HTTPException(status_code=400, detail=f"Failed to download: HTTP {response.status_code}")
+                
+                # Check content type
+                content_type = response.headers.get('content-type', '')
+                if not any(t in content_type.lower() for t in ['video', 'octet-stream', 'application']):
+                    raise HTTPException(status_code=400, detail=f"URL does not point to a video file (got {content_type})")
+                
+                # Stream to file
+                with open(file_path, 'wb') as f:
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        f.write(chunk)
+        
+        print(f"Downloaded to: {file_path}, size: {os.path.getsize(file_path)} bytes")
+        
+        # Get video info
+        info = video_processor.get_video_info(file_path)
+        
+        # Upload to R2 if enabled
+        if r2_storage.enabled:
+            r2_key = f"videos/{video_id}{ext}"
+            r2_storage.upload_file(file_path, r2_key, "video/mp4")
+            print(f"Uploaded to R2: {r2_key}")
+        
+        return VideoInfo(
+            id=video_id,
+            filename=filename,
+            duration=info["duration"],
+            width=info["width"],
+            height=info["height"],
+            fps=info["fps"],
+            size_mb=info["size_mb"]
+        )
+    except httpx.TimeoutException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=408, detail="Download timed out. Try a smaller file or faster URL.")
+    except httpx.RequestError as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=400, detail=f"Failed to process video: {str(e)}")
 
 
 @app.post("/api/clip")

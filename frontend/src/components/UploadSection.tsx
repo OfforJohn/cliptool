@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Upload, Film, AlertCircle, Zap } from 'lucide-react'
+import { Upload, Film, AlertCircle, Zap, Link, Download } from 'lucide-react'
 import { api } from '../api'
 import { VideoInfo } from '../types'
 
@@ -18,6 +18,11 @@ export default function UploadSection({ onUploaded, uploadRef }: UploadSectionPr
   const [uploadProgress, setUploadProgress] = useState(0)
   const [statusMessage, setStatusMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+  
+  // URL download state
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [videoUrl, setVideoUrl] = useState('')
+  const [isDownloading, setIsDownloading] = useState(false)
 
   const handleFile = async (file: File) => {
     const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm']
@@ -98,6 +103,46 @@ export default function UploadSection({ onUploaded, uploadRef }: UploadSectionPr
     if (file) handleFile(file)
   }
 
+  // Handle URL download
+  const handleUrlDownload = async () => {
+    if (!videoUrl.trim()) {
+      setError('Please enter a video URL')
+      return
+    }
+
+    // Basic URL validation
+    try {
+      const url = new URL(videoUrl)
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        setError('URL must start with http:// or https://')
+        return
+      }
+    } catch {
+      setError('Please enter a valid URL')
+      return
+    }
+
+    setError(null)
+    setIsDownloading(true)
+    setStatusMessage('Downloading video from URL...')
+
+    try {
+      const info = await api.downloadFromUrl(videoUrl.trim())
+      setStatusMessage('Download complete!')
+      setVideoUrl('')
+      setShowUrlInput(false)
+      
+      setTimeout(() => {
+        onUploaded(info)
+      }, 300)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to download video. Make sure the URL points directly to a video file.')
+    } finally {
+      setIsDownloading(false)
+      setStatusMessage('')
+    }
+  }
+
   return (
     <div ref={uploadRef as React.RefObject<HTMLDivElement>} className="max-w-4xl mx-auto px-4 py-12" id="upload-section">
       <div className="text-center mb-8">
@@ -107,7 +152,50 @@ export default function UploadSection({ onUploaded, uploadRef }: UploadSectionPr
         <p className="text-slate-400">
           Drag and drop or click to select • Supports MP4, MOV, AVI, MKV, WebM
         </p>
+        <button
+          onClick={() => setShowUrlInput(!showUrlInput)}
+          className="mt-3 inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm transition"
+        >
+          <Link className="w-4 h-4" />
+          {showUrlInput ? 'Hide URL input' : 'Or import from URL'}
+        </button>
       </div>
+
+      {/* URL Input Section */}
+      {showUrlInput && (
+        <div className="mb-6 p-4 bg-slate-800/50 border border-slate-700 rounded-xl">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="Paste direct video URL (e.g., https://example.com/video.mp4)"
+              disabled={isDownloading}
+              className="flex-1 px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+            <button
+              onClick={handleUrlDownload}
+              disabled={isDownloading || !videoUrl.trim()}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-white font-medium flex items-center justify-center gap-2 transition"
+            >
+              {isDownloading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download
+                </>
+              )}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Enter a direct link to a video file. For your own hosted videos, cloud storage links, or direct download URLs.
+          </p>
+        </div>
+      )}
 
       <div
         onDrop={handleDrop}
