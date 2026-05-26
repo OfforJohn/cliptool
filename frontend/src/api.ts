@@ -27,7 +27,9 @@ export const api = {
   async getPresignedUploadUrl(filename: string, contentType: string): Promise<PresignedUploadResponse | null> {
     try {
       const response = await client.post<PresignedUploadResponse>(
-        `/upload/presigned?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}`
+        `/upload/presigned?filename=${encodeURIComponent(filename)}&content_type=${encodeURIComponent(contentType)}`,
+        null,
+        { timeout: 5000 } // Quick timeout - if R2 not available, fall back fast
       )
       return response.data
     } catch {
