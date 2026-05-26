@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Scissors, VolumeX, Sparkles, Plus, Link, Check, Upload, Type } from 'lucide-react'
+import { Scissors, VolumeX, Sparkles, Plus, Link, Check, Upload, Type, FolderOpen, Play, Download, Trash2 } from 'lucide-react'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
 import ClipControls from './components/ClipControls'
@@ -21,6 +21,14 @@ interface PreviewState {
   title: string
 }
 
+interface OutputItem {
+  id: string
+  type: 'clip' | 'caption' | 'no-audio'
+  url: string
+  filename: string
+  createdAt: Date
+}
+
 function App() {
   const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -36,6 +44,7 @@ function App() {
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
   const [copied, setCopied] = useState(false)
   const [videoFormat, setVideoFormat] = useState('original')
+  const [outputs, setOutputs] = useState<OutputItem[]>([])
   const [preview, setPreview] = useState<PreviewState>({
     isOpen: false,
     videoUrl: '',
@@ -161,10 +170,21 @@ function App() {
       
       // Show preview instead of auto-download
       const formatSuffix = videoFormat !== 'original' ? `_${videoFormat}` : ''
+      const filename = `clip${formatSuffix}_${Date.now()}.mp4`
+      
+      // Add to outputs list
+      setOutputs(prev => [{
+        id: result.clip_id,
+        type: 'clip',
+        url: result.download_url,
+        filename,
+        createdAt: new Date()
+      }, ...prev])
+      
       setPreview({
         isOpen: true,
         videoUrl: result.download_url,
-        filename: `clip${formatSuffix}_${Date.now()}.mp4`,
+        filename,
         title: 'Clip Preview'
       })
       showToast('Clip created! Preview your video.', 'success')
@@ -223,11 +243,21 @@ function App() {
         }
       })
       
+      // Add to outputs list
+      const filename = `${video.filename}_captioned.mp4`
+      setOutputs(prev => [{
+        id: result.video_id,
+        type: 'caption',
+        url: result.download_url,
+        filename,
+        createdAt: new Date()
+      }, ...prev])
+      
       // Show preview instead of auto-download
       setPreview({
         isOpen: true,
         videoUrl: result.download_url,
-        filename: `${video.filename}_captioned.mp4`,
+        filename,
         title: 'Captioned Video Preview'
       })
       showToast('Captions added! Preview your video.', 'success')
@@ -415,6 +445,72 @@ function App() {
                           {scene.start.toFixed(1)}s - {scene.end.toFixed(1)}s ({scene.duration.toFixed(1)}s)
                         </div>
                       </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Outputs */}
+              {outputs.length > 0 && (
+                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <FolderOpen className="w-5 h-5 text-green-500" />
+                    Your Outputs ({outputs.length})
+                  </h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {outputs.map((output) => (
+                      <div
+                        key={output.id}
+                        className="bg-slate-700 rounded-lg p-3 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                output.type === 'clip' ? 'bg-blue-500/20 text-blue-400' :
+                                output.type === 'caption' ? 'bg-purple-500/20 text-purple-400' :
+                                'bg-orange-500/20 text-orange-400'
+                              }`}>
+                                {output.type === 'clip' ? 'Clip' : 
+                                 output.type === 'caption' ? 'Captioned' : 'No Audio'}
+                              </span>
+                            </div>
+                            <p className="text-white text-sm mt-1 truncate">{output.filename}</p>
+                            <p className="text-slate-500 text-xs">
+                              {output.createdAt.toLocaleTimeString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPreview({
+                                isOpen: true,
+                                videoUrl: output.url,
+                                filename: output.filename,
+                                title: output.type === 'clip' ? 'Clip Preview' : 
+                                       output.type === 'caption' ? 'Captioned Video' : 'Video'
+                              })}
+                              className="p-2 rounded-lg hover:bg-slate-600 transition-colors"
+                              title="Preview"
+                            >
+                              <Play className="w-4 h-4 text-slate-400" />
+                            </button>
+                            <button
+                              onClick={() => api.downloadFile(output.url, output.filename)}
+                              className="p-2 rounded-lg hover:bg-slate-600 transition-colors"
+                              title="Download"
+                            >
+                              <Download className="w-4 h-4 text-green-400" />
+                            </button>
+                            <button
+                              onClick={() => setOutputs(prev => prev.filter(o => o.id !== output.id))}
+                              className="p-2 rounded-lg hover:bg-slate-600 transition-colors opacity-0 group-hover:opacity-100"
+                              title="Remove from list"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
