@@ -204,16 +204,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         style: Optional[Dict[str, Any]] = None,
         words_per_caption: int = 3,
         use_highlight: bool = True,
+        progress_callback: Optional[callable] = None,
     ) -> bool:
         """Burn captions into video using FFmpeg"""
         try:
             print(f"Starting caption burn - video: {video_path}, output: {output_path}")
             print(f"Transcription has {len(transcription.get('segments', []))} segments")
             
+            if progress_callback:
+                progress_callback(5)
+            
             # Try ASS first, fall back to SRT if it fails
             success = self._burn_with_format(
                 video_path, output_path, transcription, 
-                style, words_per_caption, use_ass=use_highlight
+                style, words_per_caption, use_ass=use_highlight,
+                progress_callback=progress_callback
             )
             
             # If ASS failed, try SRT as fallback
@@ -221,9 +226,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 print("ASS subtitle failed, trying SRT fallback...")
                 success = self._burn_with_format(
                     video_path, output_path, transcription,
-                    style, words_per_caption, use_ass=False
+                    style, words_per_caption, use_ass=False,
+                    progress_callback=progress_callback
                 )
             
+            if progress_callback:
+                progress_callback(100)
+                
             return success
             
         except Exception as e:
@@ -240,6 +249,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         style: Optional[Dict[str, Any]],
         words_per_caption: int,
         use_ass: bool,
+        progress_callback: Optional[callable] = None,
     ) -> bool:
         """Internal method to burn captions with specific format"""
         try:
@@ -252,6 +262,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 sub_ext = '.srt'
             
             print(f"Generated {sub_ext} subtitle content ({len(sub_content)} chars)")
+            
+            if progress_callback:
+                progress_callback(10)
             
             with tempfile.NamedTemporaryFile(mode='w', suffix=sub_ext, delete=False, encoding='utf-8') as f:
                 f.write(sub_content)
@@ -271,20 +284,54 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 else:
                     filter_str = f"subtitles='{escaped_sub_path}':force_style='FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Bold=1'"
                 
+                # Get video duration for progress calculation
+                duration = self._get_video_duration(video_path)
+                
+                if progress_callback:
+                    progress_callback(15)
+                
                 cmd = [
                     'ffmpeg', '-y',
                     '-i', video_path,
                     '-vf', filter_str,
                     '-c:a', 'copy',
-                    '-preset', 'ultrafast',  # Faster encoding
+                    '-preset', 'ultrafast',
+                    '-progress', 'pipe:1',  # Output progress to stdout
                     output_path
                 ]
                 
                 print(f"Running FFmpeg: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
                 
-                if result.returncode != 0:
-                    print(f"FFmpeg stderr: {result.stderr}")
+                # Run with progress tracking
+                process = subprocess.Popen(
+                    cmd, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                # Parse progress output
+                current_time = 0
+                while True:
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if 'out_time_ms=' in line:
+                        try:
+                            time_ms = int(line.split('=')[1].strip())
+                            current_time = time_ms / 1000000  # Convert to seconds
+                            if duration > 0 and progress_callback:
+                                # Scale from 15-95%
+                                pct = min(95, 15 + int((current_time / duration) * 80))
+                                progress_callback(pct)
+                        except:
+                            pass
+                
+                process.wait(timeout=600)
+                
+                if process.returncode != 0:
+                    stderr = process.stderr.read()
+                    print(f"FFmpeg stderr: {stderr}")
                     return False
                 
                 if os.path.exists(output_path):
@@ -303,6 +350,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             import traceback
             print(traceback.format_exc())
             return False
+    
+    def _get_video_duration(self, video_path: str) -> float:
+        """Get video duration in seconds using ffprobe"""
+        try:
+            cmd = [
+                'ffprobe', '-v', 'quiet', '-print_format', 'json',
+                '-show_format', video_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                return float(data.get('format', {}).get('duration', 0))
+        except Exception as e:
+            print(f"Failed to get video duration: {e}")
+        return 0
     
     def _format_ass_time(self, seconds: float) -> str:
         """Format time for ASS subtitles (H:MM:SS.cc)"""

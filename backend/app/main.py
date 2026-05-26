@@ -50,6 +50,9 @@ ai_service = AIService()
 r2_storage = R2Storage()
 caption_service = CaptionService()
 
+# Progress tracking for long-running jobs
+job_progress: dict = {}  # job_id -> {status, progress, message, result}
+
 
 class ClipRequest(BaseModel):
     video_id: str
@@ -521,7 +524,7 @@ async def detect_scenes(video_id: str):
 
 
 @app.post("/api/add-captions")
-async def add_captions(request: CaptionRequest):
+async def add_captions(request: CaptionRequest, background_tasks: BackgroundTasks):
     """Add auto-captions with keyword highlighting to video"""
     print(f"Caption request for video: {request.video_id}")
     video_path = None
@@ -549,50 +552,84 @@ async def add_captions(request: CaptionRequest):
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
     
-    try:
-        # Get transcription if not provided
-        transcription = request.transcription
-        if not transcription:
-            print("No transcription provided, generating...")
-            transcription = ai_service.transcribe(video_path)
-        else:
-            print(f"Using provided transcription with {len(transcription.get('segments', []))} segments")
-        
-        # Validate transcription has segments
-        if not transcription or not transcription.get('segments'):
-            raise Exception("Transcription has no segments. Make sure the video has audio.")
-        
-        # Generate output path
-        output_id = str(uuid.uuid4())
-        output_path = os.path.join(OUTPUT_DIR, f"{output_id}_captioned.mp4")
-        
-        # Burn captions into video
-        print(f"Burning captions into video: {video_path} -> {output_path}")
-        print(f"Style: {request.style}, Words per caption: {request.words_per_caption}, Highlight: {request.highlight_keywords}")
-        
-        success = caption_service.burn_captions(
-            video_path=video_path,
-            output_path=output_path,
-            transcription=transcription,
-            style=request.style,
-            words_per_caption=request.words_per_caption,
-            use_highlight=request.highlight_keywords,
-        )
-        
-        if not success:
-            raise Exception("FFmpeg failed to burn captions. Check server logs for details.")
-        
-        print(f"Captions added successfully: {output_path}")
-        return {
-            "video_id": output_id,
-            "download_url": f"/outputs/{output_id}_captioned.mp4"
-        }
-        
-    except Exception as e:
-        import traceback
-        print(f"Caption generation failed: {str(e)}")
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Caption generation failed: {str(e)}")
+    # Create job ID
+    job_id = str(uuid.uuid4())
+    output_id = str(uuid.uuid4())
+    output_path = os.path.join(OUTPUT_DIR, f"{output_id}_captioned.mp4")
+    
+    # Initialize progress
+    job_progress[job_id] = {
+        "status": "starting",
+        "progress": 0,
+        "message": "Initializing...",
+        "result": None
+    }
+    
+    def process_captions():
+        try:
+            # Get transcription if not provided
+            transcription = request.transcription
+            if not transcription:
+                job_progress[job_id]["message"] = "Transcribing audio..."
+                job_progress[job_id]["progress"] = 10
+                transcription = ai_service.transcribe(video_path)
+            
+            # Validate transcription
+            if not transcription or not transcription.get('segments'):
+                raise Exception("No audio/segments found in video")
+            
+            job_progress[job_id]["message"] = "Generating captions..."
+            job_progress[job_id]["progress"] = 30
+            
+            # Create progress callback
+            def on_progress(percent):
+                # Scale from 30-95%
+                scaled = 30 + int(percent * 0.65)
+                job_progress[job_id]["progress"] = scaled
+                job_progress[job_id]["message"] = f"Burning captions... {percent}%"
+            
+            # Burn captions
+            success = caption_service.burn_captions(
+                video_path=video_path,
+                output_path=output_path,
+                transcription=transcription,
+                style=request.style,
+                words_per_caption=request.words_per_caption,
+                use_highlight=request.highlight_keywords,
+                progress_callback=on_progress,
+            )
+            
+            if not success:
+                raise Exception("Failed to burn captions")
+            
+            job_progress[job_id]["status"] = "complete"
+            job_progress[job_id]["progress"] = 100
+            job_progress[job_id]["message"] = "Complete!"
+            job_progress[job_id]["result"] = {
+                "video_id": output_id,
+                "download_url": f"/outputs/{output_id}_captioned.mp4"
+            }
+            
+        except Exception as e:
+            import traceback
+            print(f"Caption job failed: {str(e)}")
+            print(traceback.format_exc())
+            job_progress[job_id]["status"] = "error"
+            job_progress[job_id]["message"] = str(e)
+    
+    # Run in background
+    background_tasks.add_task(process_captions)
+    
+    return {"job_id": job_id}
+
+
+@app.get("/api/job/{job_id}")
+async def get_job_status(job_id: str):
+    """Get status of a background job"""
+    if job_id not in job_progress:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return job_progress[job_id]
 
 
 @app.get("/api/video/{video_id}/info")

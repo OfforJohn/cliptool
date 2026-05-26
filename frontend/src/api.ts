@@ -141,10 +141,39 @@ export const api = {
     return response.data
   },
 
-  async addCaptions(request: CaptionRequest): Promise<CaptionResult> {
-    // Use longer timeout for AI transcription + video processing
-    const response = await aiClient.post<CaptionResult>('/add-captions', request)
-    return response.data
+  async addCaptions(
+    request: CaptionRequest, 
+    onProgress?: (progress: number, message: string) => void
+  ): Promise<CaptionResult> {
+    // Start the job
+    const startResponse = await client.post<{ job_id: string }>('/add-captions', request)
+    const jobId = startResponse.data.job_id
+    
+    // Poll for progress
+    while (true) {
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+      
+      const statusResponse = await client.get<{
+        status: string
+        progress: number
+        message: string
+        result: CaptionResult | null
+      }>(`/job/${jobId}`)
+      
+      const { status, progress, message, result } = statusResponse.data
+      
+      if (onProgress) {
+        onProgress(progress, message)
+      }
+      
+      if (status === 'complete' && result) {
+        return result
+      }
+      
+      if (status === 'error') {
+        throw new Error(message || 'Caption generation failed')
+      }
+    }
   },
 
   async getVideoInfo(videoId: string): Promise<VideoInfo> {

@@ -229,19 +229,24 @@ function App() {
         setTranscription(trans)
       }
       
-      setProcessingStatus('Adding captions to video...')
-      const result = await api.addCaptions({
-        video_id: video.id,
-        transcription: trans,
-        words_per_caption: 3,
-        highlight_keywords: true,
-        style: {
-          font_size: 28,
-          primary_color: 'FFFFFF',
-          highlight_color: 'FFFF00',
-          position: 'bottom'
+      setProcessingStatus('Starting caption generation...')
+      const result = await api.addCaptions(
+        {
+          video_id: video.id,
+          transcription: trans,
+          words_per_caption: 3,
+          highlight_keywords: true,
+          style: {
+            font_size: 28,
+            primary_color: 'FFFFFF',
+            highlight_color: 'FFFF00',
+            position: 'bottom'
+          }
+        },
+        (progress, message) => {
+          setProcessingStatus(`${message} (${progress}%)`)
         }
-      })
+      )
       
       // Add to outputs list
       const filename = `${video.filename}_captioned.mp4`
@@ -264,7 +269,9 @@ function App() {
     } catch (error: unknown) {
       console.error('Caption generation failed:', error)
       let errorMessage = 'Failed to add captions. '
-      if (error instanceof Error && 'response' in error) {
+      if (error instanceof Error) {
+        errorMessage += error.message
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
         const axiosError = error as { response?: { data?: { detail?: string } } }
         errorMessage += axiosError.response?.data?.detail || ''
       }
