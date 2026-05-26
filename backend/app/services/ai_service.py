@@ -41,7 +41,7 @@ class AIService:
             # First, check if video has audio and extract it
             audio_path = self._extract_audio(video_path)
             if not audio_path:
-                raise Exception("Video has no audio track or audio extraction failed")
+                raise Exception("This video has no audio track. Please upload a video with audio to transcribe.")
             
             try:
                 # Transcribe the extracted audio
@@ -100,14 +100,35 @@ class AIService:
     def _extract_audio(self, video_path: str) -> str:
         """Extract audio from video to a temporary WAV file for reliable transcription"""
         try:
-            # Check if video has audio stream
+            # Get detailed stream info
             probe_cmd = [
-                'ffprobe', '-v', 'error', '-select_streams', 'a',
-                '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', video_path
+                'ffprobe', '-v', 'quiet', '-print_format', 'json',
+                '-show_streams', video_path
             ]
             result = subprocess.run(probe_cmd, capture_output=True, text=True)
-            if 'audio' not in result.stdout:
-                print(f"No audio stream found in {video_path}")
+            
+            has_audio = False
+            if result.returncode == 0:
+                import json
+                try:
+                    probe_data = json.loads(result.stdout)
+                    streams = probe_data.get('streams', [])
+                    for stream in streams:
+                        if stream.get('codec_type') == 'audio':
+                            has_audio = True
+                            print(f"Found audio stream: {stream.get('codec_name', 'unknown')}")
+                            break
+                except json.JSONDecodeError:
+                    print("Could not parse ffprobe output, will try extraction anyway")
+                    has_audio = True  # Try anyway
+            else:
+                print(f"ffprobe failed: {result.stderr}")
+                # Try extraction anyway in case ffprobe is wrong
+                has_audio = True
+            
+            if not has_audio:
+                print(f"No audio stream detected in {video_path}")
+                # Return None with clear message - video has no audio
                 return None
             
             # Extract audio to temp WAV file (more reliable for whisper)
