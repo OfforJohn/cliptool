@@ -564,6 +564,7 @@ function App() {
       {/* Caption Editor Modal */}
       <CaptionEditorModal
         isOpen={showCaptionEditor}
+        videoUrl={video ? api.getVideoUrl(video.id) : ''}
         transcription={transcription}
         onClose={() => setShowCaptionEditor(false)}
         onGenerate={handleGenerateCaptions}

@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   X, Wand2, Type, Palette, AlignCenter, Sparkles, 
   Languages, Hash, MessageSquare, Zap, ChevronDown,
-  Check, RefreshCw, Download, Eye
+  Check, RefreshCw, Download, Eye, Play, Pause, Volume2, VolumeX
 } from 'lucide-react'
 import { CaptionStyle, Transcription } from '../types'
 
 interface CaptionEditorModalProps {
   isOpen: boolean
+  videoUrl: string
   transcription: Transcription | null
   onClose: () => void
   onGenerate: (options: CaptionOptions) => void
@@ -72,12 +73,16 @@ const LANGUAGES = [
 
 export default function CaptionEditorModal({
   isOpen,
+  videoUrl,
   transcription,
   onClose,
   onGenerate,
   isGenerating,
   progress
 }: CaptionEditorModalProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
   const [isVisible, setIsVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<'style' | 'ai'>('style')
   
@@ -208,31 +213,88 @@ export default function CaptionEditorModal({
         <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6">
           {activeTab === 'style' ? (
             <div className="space-y-6">
-              {/* Live Preview */}
-              <div className="relative rounded-xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
-                <div className="aspect-video flex items-end justify-center p-4 sm:p-8">
+              {/* Live Preview with Video */}
+              <div className="relative rounded-xl overflow-hidden bg-black border border-slate-700">
+                <div className="aspect-video relative">
+                  {/* Actual Video */}
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className="w-full h-full object-contain"
+                    loop
+                    muted={isMuted}
+                    playsInline
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                  />
+                  
+                  {/* Caption Overlay */}
                   <div 
-                    className="text-center px-4 py-2 rounded-lg transition-all"
-                    style={{
-                      fontFamily: font,
-                      fontSize: `${Math.max(14, fontSize * 0.6)}px`,
-                      color: `#${primaryColor}`,
-                      textShadow: `2px 2px 0 #${outlineColor}, -2px -2px 0 #${outlineColor}, 2px -2px 0 #${outlineColor}, -2px 2px 0 #${outlineColor}`,
-                      marginBottom: position === 'bottom' ? '0' : position === 'center' ? 'auto' : 'auto',
-                      marginTop: position === 'top' ? '0' : position === 'center' ? 'auto' : 'auto',
-                    }}
+                    className={`absolute left-0 right-0 flex justify-center px-4 pointer-events-none ${
+                      position === 'top' ? 'top-4' : position === 'center' ? 'top-1/2 -translate-y-1/2' : 'bottom-4'
+                    }`}
                   >
-                    This is{' '}
-                    <span 
-                      style={{ 
-                        color: highlightKeywords ? `#${highlightColor}` : `#${primaryColor}`,
-                        fontWeight: highlightKeywords ? 'bold' : 'normal',
-                        fontSize: highlightKeywords ? '110%' : '100%',
+                    <div 
+                      className="text-center px-4 py-2 transition-all max-w-[90%]"
+                      style={{
+                        fontFamily: font,
+                        fontSize: `${Math.max(12, fontSize * 0.5)}px`,
+                        color: `#${primaryColor}`,
+                        textShadow: `2px 2px 0 #${outlineColor}, -2px -2px 0 #${outlineColor}, 2px -2px 0 #${outlineColor}, -2px 2px 0 #${outlineColor}`,
                       }}
                     >
-                      HIGHLIGHTED
-                    </span>
-                    {' '}text preview
+                      This is{' '}
+                      <span 
+                        style={{ 
+                          color: highlightKeywords ? `#${highlightColor}` : `#${primaryColor}`,
+                          fontWeight: highlightKeywords ? 'bold' : 'normal',
+                          fontSize: highlightKeywords ? '120%' : '100%',
+                        }}
+                      >
+                        HIGHLIGHTED
+                      </span>
+                      {' '}text
+                    </div>
+                  </div>
+
+                  {/* Video Controls Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          if (videoRef.current) {
+                            if (isPlaying) {
+                              videoRef.current.pause()
+                            } else {
+                              videoRef.current.play()
+                            }
+                          }
+                        }}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-all"
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4 text-white" />
+                        ) : (
+                          <Play className="w-4 h-4 text-white fill-white" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsMuted(!isMuted)
+                          if (videoRef.current) {
+                            videoRef.current.muted = !isMuted
+                          }
+                        }}
+                        className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-all"
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-4 h-4 text-white" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-white" />
+                        )}
+                      </button>
+                      <span className="text-xs text-white/70 ml-auto">Preview your caption style</span>
+                    </div>
                   </div>
                 </div>
                 <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-black/60 text-xs text-slate-300">
