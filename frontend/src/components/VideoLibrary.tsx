@@ -18,8 +18,27 @@ interface VideoLibraryProps {
 
 export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
   const { showToast } = useToast()
-  const [videos, setVideos] = useState<VideoItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [videos, setVideos] = useState<VideoItem[]>(() => {
+    // Load from cache on initial render
+    const cached = localStorage.getItem('videoLibraryCache')
+    if (cached) {
+      try {
+        const { videos, timestamp } = JSON.parse(cached)
+        // Use cache if less than 5 minutes old
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          return videos
+        }
+      } catch {
+        // Invalid cache, ignore
+      }
+    }
+    return []
+  })
+  const [loading, setLoading] = useState(() => {
+    // Don't show loading if we have cached data
+    const cached = localStorage.getItem('videoLibraryCache')
+    return !cached
+  })
   const [error, setError] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; videoId: string | null; filename: string }>({
     isOpen: false,
@@ -27,12 +46,17 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
     filename: ''
   })
 
-  const fetchVideos = async () => {
-    setLoading(true)
+  const fetchVideos = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     setError(null)
     try {
       const result = await api.listVideos()
       setVideos(result.videos)
+      // Save to cache
+      localStorage.setItem('videoLibraryCache', JSON.stringify({
+        videos: result.videos,
+        timestamp: Date.now()
+      }))
     } catch (err) {
       console.error('Failed to fetch videos:', err)
       setError('Failed to load video library')
@@ -42,7 +66,9 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
   }
 
   useEffect(() => {
-    fetchVideos()
+    // Fetch in background even if we have cache
+    const cached = localStorage.getItem('videoLibraryCache')
+    fetchVideos(!cached) // Only show loading spinner if no cache
   }, [])
 
   const handleDelete = async (videoId: string, e: React.MouseEvent) => {
@@ -63,7 +89,13 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
     
     try {
       await api.deleteVideo(videoId)
-      setVideos(videos.filter(v => v.id !== videoId))
+      const updatedVideos = videos.filter(v => v.id !== videoId)
+      setVideos(updatedVideos)
+      // Update cache
+      localStorage.setItem('videoLibraryCache', JSON.stringify({
+        videos: updatedVideos,
+        timestamp: Date.now()
+      }))
       showToast('Video deleted successfully', 'success')
     } catch (err) {
       console.error('Failed to delete video:', err)

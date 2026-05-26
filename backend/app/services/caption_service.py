@@ -219,8 +219,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             
             try:
                 # Build FFmpeg command
-                # Escape the subtitle path for FFmpeg filter (Windows paths need special handling)
-                escaped_sub_path = sub_path.replace('\\', '/').replace(':', '\\:')
+                # On Linux, paths don't need special escaping
+                # On Windows, we need to escape colons and use forward slashes
+                import platform
+                if platform.system() == 'Windows':
+                    escaped_sub_path = sub_path.replace('\\', '/').replace(':', '\\:')
+                else:
+                    # Linux/Unix - just use the path directly
+                    escaped_sub_path = sub_path
                 
                 if use_highlight:
                     # ASS subtitles
