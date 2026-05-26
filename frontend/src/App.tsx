@@ -493,18 +493,42 @@ function App() {
                           </div>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setPreview({
-                                isOpen: true,
-                                videoUrl: output.url,
-                                filename: output.filename,
-                                title: output.type === 'clip' ? 'Clip Preview' : 
-                                       output.type === 'caption' ? 'Captioned Video' : 'Video'
-                              })}
+                              onClick={() => {
+                                if (output.type === 'caption') {
+                                  // Open caption editor for editing
+                                  setShowCaptionEditor(true)
+                                } else {
+                                  setPreview({
+                                    isOpen: true,
+                                    videoUrl: output.url,
+                                    filename: output.filename,
+                                    title: output.type === 'clip' ? 'Clip Preview' : 'Video'
+                                  })
+                                }
+                              }}
                               className="p-2 rounded-lg hover:bg-slate-600 transition-colors"
-                              title="Preview"
+                              title={output.type === 'caption' ? 'Edit Captions' : 'Preview'}
                             >
-                              <Play className="w-4 h-4 text-slate-400" />
+                              {output.type === 'caption' ? (
+                                <Type className="w-4 h-4 text-purple-400" />
+                              ) : (
+                                <Play className="w-4 h-4 text-slate-400" />
+                              )}
                             </button>
+                            {output.type === 'caption' && (
+                              <button
+                                onClick={() => setPreview({
+                                  isOpen: true,
+                                  videoUrl: output.url,
+                                  filename: output.filename,
+                                  title: 'Captioned Video'
+                                })}
+                                className="p-2 rounded-lg hover:bg-slate-600 transition-colors"
+                                title="Preview"
+                              >
+                                <Play className="w-4 h-4 text-slate-400" />
+                              </button>
+                            )}
                             <button
                               onClick={() => api.downloadFile(output.url, output.filename)}
                               className="p-2 rounded-lg hover:bg-slate-600 transition-colors"
