@@ -67,3 +67,25 @@ export interface CompressionResult {
   compressed_size_mb: number
   reduction_percent: number
 }
+
+export interface CaptionStyle {
+  font?: string
+  font_size?: number
+  primary_color?: string
+  highlight_color?: string
+  outline_color?: string
+  position?: 'bottom' | 'center' | 'top'
+}
+
+export interface CaptionRequest {
+  video_id: string
+  transcription?: Transcription
+  style?: CaptionStyle
+  words_per_caption?: number
+  highlight_keywords?: boolean
+}
+
+export interface CaptionResult {
+  video_id: string
+  download_url: string
+}

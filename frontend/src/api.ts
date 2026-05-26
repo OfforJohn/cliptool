@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { VideoInfo, ClipRequest, Transcription, Scene, ClipResult, CompressionResult } from './types'
+import { VideoInfo, ClipRequest, Transcription, Scene, ClipResult, CompressionResult, CaptionRequest, CaptionResult } from './types'
 
 // Use environment variable for API URL in production, fallback to /api for local dev (proxied by Vite)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -138,6 +138,12 @@ export const api = {
 
   async compressVideo(videoId: string): Promise<CompressionResult> {
     const response = await client.post<CompressionResult>(`/compress?video_id=${videoId}`)
+    return response.data
+  },
+
+  async addCaptions(request: CaptionRequest): Promise<CaptionResult> {
+    // Use longer timeout for AI transcription + video processing
+    const response = await aiClient.post<CaptionResult>('/add-captions', request)
     return response.data
   },
 

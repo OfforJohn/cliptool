@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Scissors, VolumeX, Sparkles, Plus, Link, Check, Upload } from 'lucide-react'
+import { Scissors, VolumeX, Sparkles, Plus, Link, Check, Upload, Type } from 'lucide-react'
 import VideoPlayer from './components/VideoPlayer'
 import Timeline from './components/Timeline'
 import ClipControls from './components/ClipControls'
@@ -177,6 +177,51 @@ function App() {
     }
   }
 
+  const handleAddCaptions = async () => {
+    if (!video) return
+    setIsProcessing(true)
+    
+    try {
+      // First transcribe if we don't have transcription
+      let trans = transcription
+      if (!trans) {
+        setProcessingStatus('Transcribing audio (this may take a few minutes)...')
+        trans = await api.transcribe(video.id)
+        setTranscription(trans)
+      }
+      
+      setProcessingStatus('Adding captions to video...')
+      const result = await api.addCaptions({
+        video_id: video.id,
+        transcription: trans,
+        words_per_caption: 3,
+        highlight_keywords: true,
+        style: {
+          font_size: 28,
+          primary_color: 'FFFFFF',
+          highlight_color: 'FFFF00',
+          position: 'bottom'
+        }
+      })
+      
+      // Download the captioned video
+      setProcessingStatus('Downloading captioned video...')
+      await api.downloadFile(result.download_url, `${video.filename}_captioned.mp4`)
+      showToast('Captioned video downloaded!', 'success')
+    } catch (error: unknown) {
+      console.error('Caption generation failed:', error)
+      let errorMessage = 'Failed to add captions. '
+      if (error instanceof Error && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } }
+        errorMessage += axiosError.response?.data?.detail || ''
+      }
+      showToast(errorMessage, 'error')
+    } finally {
+      setIsProcessing(false)
+      setProcessingStatus('')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Header */}
@@ -309,6 +354,14 @@ function App() {
                   >
                     <VolumeX className="w-4 h-4" />
                     Remove Audio (Full Video)
+                  </button>
+                  <button
+                    onClick={handleAddCaptions}
+                    disabled={isProcessing}
+                    className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 disabled:bg-slate-600 text-white py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <Type className="w-4 h-4" />
+                    Auto-Captions + Keywords
                   </button>
                 </div>
                 {isProcessing && (

@@ -14,6 +14,7 @@ from urllib.parse import urlparse, unquote
 from app.services.video_processor import VideoProcessor
 from app.services.ai_service import AIService
 from app.services.r2_storage import R2Storage
+from app.services.caption_service import CaptionService
 
 app = FastAPI(title="ClipTool API", version="1.0.0")
 
@@ -47,6 +48,7 @@ app.mount("/api/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 video_processor = VideoProcessor()
 ai_service = AIService()
 r2_storage = R2Storage()
+caption_service = CaptionService()
 
 
 class ClipRequest(BaseModel):
@@ -77,6 +79,14 @@ class TranscriptionRequest(BaseModel):
 class URLDownloadRequest(BaseModel):
     url: str
     filename: Optional[str] = None
+
+
+class CaptionRequest(BaseModel):
+    video_id: str
+    transcription: Optional[dict] = None  # Pass existing transcription, or we'll generate
+    style: Optional[dict] = None  # Font, colors, position
+    words_per_caption: int = 3  # Words shown at a time
+    highlight_keywords: bool = True  # Enable keyword highlighting
 
 
 class VideoInfo(BaseModel):
@@ -508,6 +518,71 @@ async def detect_scenes(video_id: str):
         return {"scenes": scenes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scene detection failed: {str(e)}")
+
+
+@app.post("/api/add-captions")
+async def add_captions(request: CaptionRequest):
+    """Add auto-captions with keyword highlighting to video"""
+    print(f"Caption request for video: {request.video_id}")
+    video_path = None
+    
+    # First check local storage
+    for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+        path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
+        if os.path.exists(path):
+            video_path = path
+            break
+    
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        print(f"Video not found locally, checking R2...")
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{request.video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
+                print(f"Downloading from R2: {r2_key}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                    print(f"Downloaded to: {local_path}")
+                break
+    
+    if not video_path:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    try:
+        # Get transcription if not provided
+        transcription = request.transcription
+        if not transcription:
+            print("No transcription provided, generating...")
+            transcription = ai_service.transcribe(video_path)
+        
+        # Generate output path
+        output_id = str(uuid.uuid4())
+        output_path = os.path.join(OUTPUT_DIR, f"{output_id}_captioned.mp4")
+        
+        # Burn captions into video
+        print(f"Burning captions into video...")
+        success = caption_service.burn_captions(
+            video_path=video_path,
+            output_path=output_path,
+            transcription=transcription,
+            style=request.style,
+            words_per_caption=request.words_per_caption,
+            use_highlight=request.highlight_keywords,
+        )
+        
+        if not success:
+            raise Exception("Failed to burn captions into video")
+        
+        print(f"Captions added successfully: {output_path}")
+        return {
+            "video_id": output_id,
+            "download_url": f"/outputs/{output_id}_captioned.mp4"
+        }
+        
+    except Exception as e:
+        print(f"Caption generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Caption generation failed: {str(e)}")
 
 
 @app.get("/api/video/{video_id}/info")
