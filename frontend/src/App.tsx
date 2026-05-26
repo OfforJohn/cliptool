@@ -9,9 +9,17 @@ import VideoLibrary from './components/VideoLibrary'
 import HeroSection from './components/HeroSection'
 import UploadSection from './components/UploadSection'
 import FormatSelector from './components/FormatSelector'
+import VideoPreviewModal from './components/VideoPreviewModal'
 import { useToast } from './components/Toast'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
+
+interface PreviewState {
+  isOpen: boolean
+  videoUrl: string
+  filename: string
+  title: string
+}
 
 function App() {
   const { showToast } = useToast()
@@ -28,6 +36,12 @@ function App() {
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
   const [copied, setCopied] = useState(false)
   const [videoFormat, setVideoFormat] = useState('original')
+  const [preview, setPreview] = useState<PreviewState>({
+    isOpen: false,
+    videoUrl: '',
+    filename: '',
+    title: ''
+  })
   const uploadRef = useRef<HTMLDivElement>(null)
 
   const scrollToUpload = () => {
@@ -145,10 +159,15 @@ function App() {
         video_format: videoFormat !== 'original' ? videoFormat : undefined
       })
       
-      // Download the clip using blob (works cross-origin)
-      setProcessingStatus('Downloading clip...')
+      // Show preview instead of auto-download
       const formatSuffix = videoFormat !== 'original' ? `_${videoFormat}` : ''
-      await api.downloadFile(result.download_url, `clip${formatSuffix}_${Date.now()}.mp4`)
+      setPreview({
+        isOpen: true,
+        videoUrl: result.download_url,
+        filename: `clip${formatSuffix}_${Date.now()}.mp4`,
+        title: 'Clip Preview'
+      })
+      showToast('Clip created! Preview your video.', 'success')
     } catch (error) {
       console.error('Clip creation failed:', error)
       showToast('Failed to create clip.', 'error')
@@ -204,10 +223,14 @@ function App() {
         }
       })
       
-      // Download the captioned video
-      setProcessingStatus('Downloading captioned video...')
-      await api.downloadFile(result.download_url, `${video.filename}_captioned.mp4`)
-      showToast('Captioned video downloaded!', 'success')
+      // Show preview instead of auto-download
+      setPreview({
+        isOpen: true,
+        videoUrl: result.download_url,
+        filename: `${video.filename}_captioned.mp4`,
+        title: 'Captioned Video Preview'
+      })
+      showToast('Captions added! Preview your video.', 'success')
     } catch (error: unknown) {
       console.error('Caption generation failed:', error)
       let errorMessage = 'Failed to add captions. '
@@ -421,6 +444,15 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Video Preview Modal */}
+      <VideoPreviewModal
+        isOpen={preview.isOpen}
+        videoUrl={preview.videoUrl}
+        filename={preview.filename}
+        title={preview.title}
+        onClose={() => setPreview({ ...preview, isOpen: false })}
+      />
     </div>
   )
 }
