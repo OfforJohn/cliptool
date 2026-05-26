@@ -125,7 +125,7 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <p className="text-red-400 text-center">{error}</p>
         <button
-          onClick={fetchVideos}
+          onClick={() => fetchVideos()}
           className="mt-4 mx-auto flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white"
         >
           <RefreshCw className="w-4 h-4" />
@@ -155,7 +155,7 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
           Your Videos ({videos.length})
         </h3>
         <button
-          onClick={fetchVideos}
+          onClick={() => fetchVideos()}
           className="p-2 hover:bg-slate-700 rounded-lg transition"
           title="Refresh"
         >
