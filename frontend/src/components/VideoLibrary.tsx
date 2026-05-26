@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Film, Cloud, HardDrive, Trash2, Play, RefreshCw } from 'lucide-react'
 import { api } from '../api'
+import { useToast } from './Toast'
+import ConfirmModal from './ConfirmModal'
 
 interface VideoItem {
   id: string
@@ -15,9 +17,15 @@ interface VideoLibraryProps {
 }
 
 export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
+  const { showToast } = useToast()
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; videoId: string | null; filename: string }>({
+    isOpen: false,
+    videoId: null,
+    filename: ''
+  })
 
   const fetchVideos = async () => {
     setLoading(true)
@@ -39,14 +47,27 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
 
   const handleDelete = async (videoId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm('Delete this video permanently?')) return
+    const video = videos.find(v => v.id === videoId)
+    setDeleteModal({
+      isOpen: true,
+      videoId,
+      filename: video?.filename || 'this video'
+    })
+  }
+
+  const confirmDelete = async () => {
+    const videoId = deleteModal.videoId
+    if (!videoId) return
+    
+    setDeleteModal({ isOpen: false, videoId: null, filename: '' })
     
     try {
       await api.deleteVideo(videoId)
       setVideos(videos.filter(v => v.id !== videoId))
+      showToast('Video deleted successfully', 'success')
     } catch (err) {
       console.error('Failed to delete video:', err)
-      alert('Failed to delete video')
+      showToast('Failed to delete video', 'error')
     }
   }
 
@@ -156,6 +177,17 @@ export default function VideoLibrary({ onSelectVideo }: VideoLibraryProps) {
           </div>
         ))}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Video"
+        message={`Are you sure you want to delete "${deleteModal.filename}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ isOpen: false, videoId: null, filename: '' })}
+      />
     </div>
   )
 }

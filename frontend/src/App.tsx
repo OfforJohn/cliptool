@@ -9,10 +9,12 @@ import VideoLibrary from './components/VideoLibrary'
 import HeroSection from './components/HeroSection'
 import UploadSection from './components/UploadSection'
 import FormatSelector from './components/FormatSelector'
+import { useToast } from './components/Toast'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
 
 function App() {
+  const { showToast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [video, setVideo] = useState<VideoInfo | null>(null)
   const [clipStart, setClipStart] = useState(0)
@@ -106,7 +108,7 @@ function App() {
       } else {
         errorMessage += 'An unexpected error occurred.'
       }
-      alert(errorMessage)
+      showToast(errorMessage, 'error')
     } finally {
       setIsProcessing(false)
       setProcessingStatus('')
@@ -122,7 +124,7 @@ function App() {
       setScenes(result.scenes)
     } catch (error) {
       console.error('Scene detection failed:', error)
-      alert('Scene detection failed.')
+      showToast('Scene detection failed.', 'error')
     } finally {
       setIsProcessing(false)
       setProcessingStatus('')
@@ -149,7 +151,7 @@ function App() {
       await api.downloadFile(result.download_url, `clip${formatSuffix}_${Date.now()}.mp4`)
     } catch (error) {
       console.error('Clip creation failed:', error)
-      alert('Failed to create clip.')
+      showToast('Failed to create clip.', 'error')
     } finally {
       setIsProcessing(false)
       setProcessingStatus('')
@@ -168,7 +170,7 @@ function App() {
       await api.downloadFile(result.download_url, `${video.filename}_noaudio.mp4`)
     } catch (error) {
       console.error('Remove audio failed:', error)
-      alert('Failed to remove audio.')
+      showToast('Failed to remove audio.', 'error')
     } finally {
       setIsProcessing(false)
       setProcessingStatus('')
