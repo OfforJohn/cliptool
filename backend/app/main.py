@@ -555,13 +555,21 @@ async def add_captions(request: CaptionRequest):
         if not transcription:
             print("No transcription provided, generating...")
             transcription = ai_service.transcribe(video_path)
+        else:
+            print(f"Using provided transcription with {len(transcription.get('segments', []))} segments")
+        
+        # Validate transcription has segments
+        if not transcription or not transcription.get('segments'):
+            raise Exception("Transcription has no segments. Make sure the video has audio.")
         
         # Generate output path
         output_id = str(uuid.uuid4())
         output_path = os.path.join(OUTPUT_DIR, f"{output_id}_captioned.mp4")
         
         # Burn captions into video
-        print(f"Burning captions into video...")
+        print(f"Burning captions into video: {video_path} -> {output_path}")
+        print(f"Style: {request.style}, Words per caption: {request.words_per_caption}, Highlight: {request.highlight_keywords}")
+        
         success = caption_service.burn_captions(
             video_path=video_path,
             output_path=output_path,
@@ -572,7 +580,7 @@ async def add_captions(request: CaptionRequest):
         )
         
         if not success:
-            raise Exception("Failed to burn captions into video")
+            raise Exception("FFmpeg failed to burn captions. Check server logs for details.")
         
         print(f"Captions added successfully: {output_path}")
         return {
@@ -581,7 +589,9 @@ async def add_captions(request: CaptionRequest):
         }
         
     except Exception as e:
+        import traceback
         print(f"Caption generation failed: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Caption generation failed: {str(e)}")
 
 

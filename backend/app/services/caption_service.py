@@ -3,6 +3,8 @@ Caption Service - Generate captions with keyword highlighting for videos
 """
 import os
 import re
+import json
+import platform
 import tempfile
 import subprocess
 from typing import List, Dict, Any, Optional
@@ -221,7 +223,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 # Build FFmpeg command
                 # On Linux, paths don't need special escaping
                 # On Windows, we need to escape colons and use forward slashes
-                import platform
                 if platform.system() == 'Windows':
                     escaped_sub_path = sub_path.replace('\\', '/').replace(':', '\\:')
                 else:
@@ -244,7 +245,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 ]
                 
                 print(f"Running FFmpeg caption burn: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
                 
                 if result.returncode != 0:
                     print(f"FFmpeg error: {result.stderr}")
