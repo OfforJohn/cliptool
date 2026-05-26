@@ -7,6 +7,7 @@ import json
 import platform
 import tempfile
 import subprocess
+import threading
 from typing import List, Dict, Any, Optional
 
 # Common filler words to NOT highlight
@@ -303,19 +304,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 print(f"Running FFmpeg: {' '.join(cmd)}")
                 
                 # Run with progress tracking
+                # Use stderr=DEVNULL to avoid pipe deadlock on Windows
+                # Progress info goes to stdout via -progress pipe:1
+                stderr_output = []
+                
                 process = subprocess.Popen(
                     cmd, 
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
+                    bufsize=1  # Line buffered
                 )
                 
-                # Parse progress output
+                # Read stderr in background thread to prevent deadlock
+                def read_stderr():
+                    for line in process.stderr:
+                        stderr_output.append(line)
+                
+                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+                stderr_thread.start()
+                
+                # Parse progress output from stdout
                 current_time = 0
-                while True:
-                    line = process.stdout.readline()
-                    if not line and process.poll() is not None:
-                        break
+                last_pct = 15
+                for line in process.stdout:
                     if 'out_time_ms=' in line:
                         try:
                             time_ms = int(line.split('=')[1].strip())
@@ -323,14 +335,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                             if duration > 0 and progress_callback:
                                 # Scale from 15-95%
                                 pct = min(95, 15 + int((current_time / duration) * 80))
-                                progress_callback(pct)
+                                if pct > last_pct:  # Only update on increase
+                                    last_pct = pct
+                                    progress_callback(pct)
                         except:
                             pass
                 
                 process.wait(timeout=600)
+                stderr_thread.join(timeout=5)
                 
                 if process.returncode != 0:
-                    stderr = process.stderr.read()
+                    stderr = ''.join(stderr_output)
                     print(f"FFmpeg stderr: {stderr}")
                     return False
                 
