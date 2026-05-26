@@ -6,6 +6,7 @@ export interface VideoInfo {
   height: number
   fps: number
   size_mb: number
+  is_audio_only?: boolean
 }
 
 export interface VideoFormat {

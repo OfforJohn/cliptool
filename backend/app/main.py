@@ -298,8 +298,8 @@ async def download_from_url(request: URLDownloadRequest):
                 
                 # Check content type
                 content_type = response.headers.get('content-type', '')
-                if not any(t in content_type.lower() for t in ['video', 'octet-stream', 'application']):
-                    raise HTTPException(status_code=400, detail=f"URL does not point to a video file (got {content_type})")
+                if not any(t in content_type.lower() for t in ['video', 'audio', 'octet-stream', 'application']):
+                    raise HTTPException(status_code=400, detail=f"URL does not point to a video or audio file (got {content_type})")
                 
                 # Stream to file
                 with open(file_path, 'wb') as f:
@@ -351,6 +351,16 @@ async def create_clip(request: ClipRequest):
             video_path = path
             break
     
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{request.video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                break
+    
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -398,6 +408,16 @@ async def remove_audio(video_id: str):
             video_path = path
             break
     
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                break
+    
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
     
@@ -419,11 +439,28 @@ async def transcribe_video(request: TranscriptionRequest):
     """Transcribe video audio using Whisper AI"""
     print(f"Transcription request for video: {request.video_id}")
     video_path = None
+    temp_downloaded = False
+    
+    # First check local storage
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
         if os.path.exists(path):
             video_path = path
             break
+    
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        print(f"Video not found locally, checking R2...")
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{request.video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{request.video_id}{ext}")
+                print(f"Downloading from R2: {r2_key}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                    temp_downloaded = True
+                    print(f"Downloaded to: {local_path}")
+                break
     
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -442,11 +479,26 @@ async def transcribe_video(request: TranscriptionRequest):
 async def detect_scenes(video_id: str):
     """Detect scene changes in video for smart clipping"""
     video_path = None
+    
+    # First check local storage
     for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
         path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
         if os.path.exists(path):
             video_path = path
             break
+    
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        print(f"Video not found locally for scene detection, checking R2...")
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+                print(f"Downloading from R2: {r2_key}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                    print(f"Downloaded to: {local_path}")
+                break
     
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -565,6 +617,17 @@ async def compress_video(video_id: str):
             video_path = path
             video_ext = ext
             break
+    
+    # If not found locally, try to download from R2
+    if not video_path and r2_storage.enabled:
+        for ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+            r2_key = f"videos/{video_id}{ext}"
+            if r2_storage.file_exists(r2_key):
+                local_path = os.path.join(UPLOAD_DIR, f"{video_id}{ext}")
+                if r2_storage.download_file(r2_key, local_path):
+                    video_path = local_path
+                    video_ext = ext
+                break
     
     if not video_path:
         raise HTTPException(status_code=404, detail="Video not found")

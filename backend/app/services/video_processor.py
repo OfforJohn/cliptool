@@ -19,31 +19,37 @@ class VideoProcessor:
     """Video processing service using FFmpeg"""
     
     def get_video_info(self, video_path: str) -> Dict[str, Any]:
-        """Get video metadata using ffprobe"""
+        """Get video/audio metadata using ffprobe"""
         try:
             probe = ffmpeg.probe(video_path)
             video_stream = next(
                 (s for s in probe['streams'] if s['codec_type'] == 'video'),
                 None
             )
+            audio_stream = next(
+                (s for s in probe['streams'] if s['codec_type'] == 'audio'),
+                None
+            )
             
-            if not video_stream:
-                raise ValueError("No video stream found")
+            if not video_stream and not audio_stream:
+                raise ValueError("No video or audio stream found")
             
             # Parse duration
             duration = float(probe['format'].get('duration', 0))
             
-            # Parse dimensions
-            width = int(video_stream.get('width', 0))
-            height = int(video_stream.get('height', 0))
+            # Parse dimensions (0 for audio-only files)
+            width = int(video_stream.get('width', 0)) if video_stream else 0
+            height = int(video_stream.get('height', 0)) if video_stream else 0
             
-            # Parse FPS
-            fps_str = video_stream.get('r_frame_rate', '30/1')
-            if '/' in fps_str:
-                num, den = fps_str.split('/')
-                fps = float(num) / float(den) if float(den) != 0 else 30.0
-            else:
-                fps = float(fps_str)
+            # Parse FPS (0 for audio-only files)
+            fps = 0.0
+            if video_stream:
+                fps_str = video_stream.get('r_frame_rate', '30/1')
+                if '/' in fps_str:
+                    num, den = fps_str.split('/')
+                    fps = float(num) / float(den) if float(den) != 0 else 30.0
+                else:
+                    fps = float(fps_str)
             
             # File size in MB
             size_bytes = int(probe['format'].get('size', 0))
@@ -54,7 +60,8 @@ class VideoProcessor:
                 'width': width,
                 'height': height,
                 'fps': round(fps, 2),
-                'size_mb': round(size_mb, 2)
+                'size_mb': round(size_mb, 2),
+                'is_audio_only': video_stream is None
             }
         except ffmpeg.Error as e:
             raise Exception(f"FFprobe error: {e.stderr.decode() if e.stderr else str(e)}")

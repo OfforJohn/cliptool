@@ -19,9 +19,13 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
   const [error, setError] = useState<string | null>(null)
 
   const handleFile = async (file: File) => {
-    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm']
-    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-      setError('Please upload a valid video file (MP4, MOV, AVI, MKV, or WebM)')
+    const allowedTypes = [
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm',
+      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/x-m4a',
+      'audio/flac', 'audio/ogg', 'audio/aac', 'audio/webm'
+    ]
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm|mp3|wav|m4a|flac|ogg|aac)$/i)) {
+      setError('Please upload a valid video or audio file (MP4, MOV, AVI, MKV, WebM, MP3, WAV, M4A, FLAC, OGG)')
       return
     }
 
@@ -127,7 +131,7 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
       >
         <input
           type="file"
-          accept="video/*"
+          accept="video/*,audio/*"
           onChange={handleInputChange}
           disabled={isUploading}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
@@ -159,12 +163,12 @@ export default function VideoUpload({ onUploaded }: VideoUploadProps) {
           <div className="space-y-4">
             <Upload className={`w-12 h-12 mx-auto ${isDragging ? 'text-blue-500' : 'text-slate-400'}`} />
             <div>
-              <span className="text-white font-medium">Drop your video here</span>
+              <span className="text-white font-medium">Drop your video or audio here</span>
               <span className="text-slate-400"> or </span>
               <span className="text-blue-500 font-medium">browse</span>
             </div>
             <p className="text-slate-500 text-sm">
-              Supports MP4, MOV, AVI, MKV, WebM
+              Supports MP4, MOV, AVI, MKV, WebM, MP3, WAV, M4A, FLAC
             </p>
           </div>
         )}
