@@ -10,6 +10,7 @@ import HeroSection from './components/HeroSection'
 import UploadSection from './components/UploadSection'
 import FormatSelector from './components/FormatSelector'
 import VideoPreviewModal from './components/VideoPreviewModal'
+import CaptionEditorModal, { CaptionOptions } from './components/CaptionEditorModal'
 import { useToast } from './components/Toast'
 import { VideoInfo, Transcription, Scene } from './types'
 import { api } from './api'
@@ -51,6 +52,7 @@ function App() {
     filename: '',
     title: ''
   })
+  const [showCaptionEditor, setShowCaptionEditor] = useState(false)
   const uploadRef = useRef<HTMLDivElement>(null)
 
   const scrollToUpload = () => {
@@ -216,7 +218,11 @@ function App() {
     }
   }
 
-  const handleAddCaptions = async () => {
+  const handleOpenCaptionEditor = () => {
+    setShowCaptionEditor(true)
+  }
+
+  const handleGenerateCaptions = async (options: CaptionOptions) => {
     if (!video) return
     setIsProcessing(true)
     
@@ -234,19 +240,17 @@ function App() {
         {
           video_id: video.id,
           transcription: trans,
-          words_per_caption: 3,
-          highlight_keywords: true,
-          style: {
-            font_size: 28,
-            primary_color: 'FFFFFF',
-            highlight_color: 'FFFF00',
-            position: 'bottom'
-          }
+          words_per_caption: options.wordsPerCaption,
+          highlight_keywords: options.highlightKeywords,
+          style: options.style
         },
         (progress, message) => {
           setProcessingStatus(`${message} (${progress}%)`)
         }
       )
+      
+      // Close the editor
+      setShowCaptionEditor(false)
       
       // Add to outputs list
       const filename = `${video.filename}_captioned.mp4`
@@ -416,7 +420,7 @@ function App() {
                     Remove Audio (Full Video)
                   </button>
                   <button
-                    onClick={handleAddCaptions}
+                    onClick={handleOpenCaptionEditor}
                     disabled={isProcessing}
                     className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 disabled:bg-slate-600 text-white py-2 px-4 rounded-lg transition flex items-center justify-center gap-2"
                   >
@@ -555,6 +559,16 @@ function App() {
         filename={preview.filename}
         title={preview.title}
         onClose={() => setPreview({ ...preview, isOpen: false })}
+      />
+
+      {/* Caption Editor Modal */}
+      <CaptionEditorModal
+        isOpen={showCaptionEditor}
+        transcription={transcription}
+        onClose={() => setShowCaptionEditor(false)}
+        onGenerate={handleGenerateCaptions}
+        isGenerating={isProcessing}
+        progress={processingStatus}
       />
     </div>
   )
