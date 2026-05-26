@@ -207,59 +207,101 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     ) -> bool:
         """Burn captions into video using FFmpeg"""
         try:
+            print(f"Starting caption burn - video: {video_path}, output: {output_path}")
+            print(f"Transcription has {len(transcription.get('segments', []))} segments")
+            
+            # Try ASS first, fall back to SRT if it fails
+            success = self._burn_with_format(
+                video_path, output_path, transcription, 
+                style, words_per_caption, use_ass=use_highlight
+            )
+            
+            # If ASS failed, try SRT as fallback
+            if not success and use_highlight:
+                print("ASS subtitle failed, trying SRT fallback...")
+                success = self._burn_with_format(
+                    video_path, output_path, transcription,
+                    style, words_per_caption, use_ass=False
+                )
+            
+            return success
+            
+        except Exception as e:
+            print(f"Caption burn error: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return False
+    
+    def _burn_with_format(
+        self,
+        video_path: str,
+        output_path: str,
+        transcription: Dict[str, Any],
+        style: Optional[Dict[str, Any]],
+        words_per_caption: int,
+        use_ass: bool,
+    ) -> bool:
+        """Internal method to burn captions with specific format"""
+        try:
             # Create temp subtitle file
-            if use_highlight:
+            if use_ass:
                 sub_content = self.generate_ass_subtitles(transcription, style, words_per_caption)
                 sub_ext = '.ass'
             else:
                 sub_content = self.generate_srt_subtitles(transcription, words_per_caption)
                 sub_ext = '.srt'
             
+            print(f"Generated {sub_ext} subtitle content ({len(sub_content)} chars)")
+            
             with tempfile.NamedTemporaryFile(mode='w', suffix=sub_ext, delete=False, encoding='utf-8') as f:
                 f.write(sub_content)
                 sub_path = f.name
             
+            print(f"Subtitle file created: {sub_path}")
+            
             try:
-                # Build FFmpeg command
                 # On Linux, paths don't need special escaping
-                # On Windows, we need to escape colons and use forward slashes
                 if platform.system() == 'Windows':
                     escaped_sub_path = sub_path.replace('\\', '/').replace(':', '\\:')
                 else:
-                    # Linux/Unix - just use the path directly
                     escaped_sub_path = sub_path
                 
-                if use_highlight:
-                    # ASS subtitles
+                if use_ass:
                     filter_str = f"ass='{escaped_sub_path}'"
                 else:
-                    # SRT subtitles with styling
-                    filter_str = f"subtitles='{escaped_sub_path}':force_style='FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2'"
+                    filter_str = f"subtitles='{escaped_sub_path}':force_style='FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Bold=1'"
                 
                 cmd = [
                     'ffmpeg', '-y',
                     '-i', video_path,
                     '-vf', filter_str,
                     '-c:a', 'copy',
+                    '-preset', 'ultrafast',  # Faster encoding
                     output_path
                 ]
                 
-                print(f"Running FFmpeg caption burn: {' '.join(cmd)}")
+                print(f"Running FFmpeg: {' '.join(cmd)}")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
                 
                 if result.returncode != 0:
-                    print(f"FFmpeg error: {result.stderr}")
+                    print(f"FFmpeg stderr: {result.stderr}")
                     return False
                 
-                return os.path.exists(output_path)
+                if os.path.exists(output_path):
+                    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                    print(f"Output created: {output_path} ({size_mb:.2f} MB)")
+                    return True
+                    
+                return False
                 
             finally:
-                # Clean up temp subtitle file
                 if os.path.exists(sub_path):
                     os.remove(sub_path)
                     
         except Exception as e:
-            print(f"Caption burn error: {str(e)}")
+            print(f"Caption format burn error ({'.ass' if use_ass else '.srt'}): {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return False
     
     def _format_ass_time(self, seconds: float) -> str:
